@@ -1,0 +1,13 @@
+# S4: second pre-ChatGPT year. ICLR 2021 papers whose human reviews were written in October-November 2020.
+# Sample frozen by scripts/freeze_iclr2021_sample.py; text and dossiers by scripts/build_iclr2021.py (296 of 300
+# papers have extractable PDF text). Roster: the eight-family panel. One run of call A (own evidence).
+#   results/iclr2021_prechatgpt/run_panel.sh
+#   python -m peerreview scores --models <the eight> --venues iclr2021 --tag prechatgpt \
+#       --manifest data/manifests/iclr2021_prechatgpt_run.json --out results/iclr2021_prechatgpt/scores.csv
+name: iclr2021_prechatgpt
+models: [gpt-5.6-terra, gemini-3.1-pro, claude-sonnet-5, deepseek-v4-flash-0731, glm-5.2,
+         qwen3.8-2.4t-a95b, grok-4.7, kimi-k3]
+venues: [iclr2021]
+scores: results/iclr2021_prechatgpt/scores.csv
+manifest: data/manifests/iclr2021_prechatgpt_run.json
+settings: [own]

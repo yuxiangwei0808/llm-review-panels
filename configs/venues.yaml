@@ -1,0 +1,165 @@
+# One entry per venue. To add a venue, copy an entry and fill in every field; see docs/EXTEND_VENUE.md.
+#
+# prompt_name   venue name as written into prompts
+# short_name    used in "probability <short_name> accepts this paper"
+# scores        the ratings a reviewer may give, ascending; normalization is (s - min) / (max - min)
+# accept_threshold  lowest rating on the accepting side of the official form
+# scale_labels  official review-form wording, one per allowed rating
+# openreview    where to harvest the venue, and which review-form fields hold what
+iclr2025:
+  name: ICLR 2025
+  prompt_name: ICLR 2025 (International Conference on Learning Representations)
+  short_name: ICLR
+  scores: [1, 3, 5, 6, 8, 10]
+  accept_threshold: 6
+  scale_labels:
+    10: strong accept, should be highlighted at the conference
+    8: accept, good paper
+    6: marginally above the acceptance threshold
+    5: marginally below the acceptance threshold
+    3: reject, not good enough
+    1: strong reject
+  openreview:
+    venue_id: ICLR.cc/2025/Conference
+    api_version: 2
+    submission_invitations: [ICLR.cc/2025/Conference/-/Submission]
+    rating_field: rating
+    confidence_field: confidence
+    summary_field: summary
+    strengths_field: strengths
+    weaknesses_field: weaknesses
+neurips2023:
+  name: NeurIPS 2023
+  prompt_name: NeurIPS 2023
+  short_name: NeurIPS
+  scores: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  accept_threshold: 5
+  scale_labels:
+    10: award quality
+    9: very strong accept
+    8: strong accept
+    7: accept
+    6: weak accept
+    5: borderline accept
+    4: borderline reject
+    3: reject
+    2: strong reject
+    1: very strong reject
+  openreview:
+    venue_id: NeurIPS.cc/2023/Conference
+    api_version: 2
+    submission_invitations: [NeurIPS.cc/2023/Conference/-/Submission]
+    rating_field: rating
+    confidence_field: confidence
+    summary_field: summary
+    strengths_field: strengths
+    weaknesses_field: weaknesses
+icml2025:
+  name: ICML 2025
+  prompt_name: ICML 2025
+  short_name: ICML
+  scores: [1, 2, 3, 4, 5]
+  accept_threshold: 3
+  scale_labels:
+    5: strong accept
+    4: accept
+    3: weak accept
+    2: weak reject
+    1: reject
+  openreview:
+    venue_id: ICML.cc/2025/Conference
+    api_version: 2
+    submission_invitations: [ICML.cc/2025/Conference/-/Submission]
+    rating_field: overall_recommendation
+    confidence_field: null
+    # ICML 2025 has one combined field; strengths and weaknesses are separated when dossiers are built.
+    summary_field: summary
+    strengths_field: null
+    weaknesses_field: null
+
+# ICLR 2022: reviews written October-November 2021, before ChatGPT. Same six-point scale and wording
+# as ICLR 2025. The 2022 form had one free-text `main_review` instead of strengths/weaknesses fields;
+# the frozen dossiers in data/dossiers/iclr2022/v5/ already carry the itemized version. API v1.
+iclr2021:
+  name: ICLR 2021
+  prompt_name: ICLR 2021 (International Conference on Learning Representations)
+  short_name: ICLR
+  scores: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  accept_threshold: 6
+  scale_labels:
+    10: Top 5% of accepted papers, seminal paper
+    9: Top 15% of accepted papers, strong accept
+    8: Top 50% of accepted papers, clear accept
+    7: Good paper, accept
+    6: Marginally above acceptance threshold
+    5: Marginally below acceptance threshold
+    4: Ok but not good enough - rejection
+    3: Clear rejection
+    2: Strong rejection
+    1: Trivial or wrong
+  openreview:
+    venue_id: ICLR.cc/2021/Conference
+    api_version: 1
+    submission_invitations: [ICLR.cc/2021/Conference/-/Blind_Submission,
+                             ICLR.cc/2021/Conference/-/Withdrawn_Submission]
+    rating_field: rating
+    confidence_field: confidence
+    summary_field: null
+    review_field: review
+    strengths_field: null
+    weaknesses_field: null
+
+iclr2022:
+  name: ICLR 2022
+  prompt_name: ICLR 2022 (International Conference on Learning Representations)
+  short_name: ICLR
+  scores: [1, 3, 5, 6, 8, 10]
+  accept_threshold: 6
+  scale_labels:
+    10: strong accept, should be highlighted at the conference
+    8: accept, good paper
+    6: marginally above the acceptance threshold
+    5: marginally below the acceptance threshold
+    3: reject, not good enough
+    1: strong reject
+  openreview:
+    venue_id: ICLR.cc/2022/Conference
+    api_version: 1
+    submission_invitations: [ICLR.cc/2022/Conference/-/Blind_Submission,
+                             ICLR.cc/2022/Conference/-/Withdrawn_Submission]
+    rating_field: recommendation
+    confidence_field: confidence
+    summary_field: summary_of_the_paper
+    review_field: main_review
+    strengths_field: null
+    weaknesses_field: null
+
+# NeurIPS 2022: reviews written July-August 2022, before ChatGPT (S5). API v1. Rejected papers are public only
+# when their authors opted in; withdrawn papers are not public. Same ten-point form as NeurIPS 2023.
+neurips2022:
+  name: NeurIPS 2022
+  prompt_name: NeurIPS 2022
+  short_name: NeurIPS
+  scores: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+  accept_threshold: 5
+  scale_labels:
+    10: award quality
+    9: very strong accept
+    8: strong accept
+    7: accept
+    6: weak accept
+    5: borderline accept
+    4: borderline reject
+    3: reject
+    2: strong reject
+    1: very strong reject
+  openreview:
+    venue_id: NeurIPS.cc/2022/Conference
+    api_version: 1
+    submission_invitations: [NeurIPS.cc/2022/Conference/-/Blind_Submission]
+    rating_field: rating
+    confidence_field: confidence
+    summary_field: summary
+    review_field: strengths_and_weaknesses
+    strengths_field: null
+    weaknesses_field: null

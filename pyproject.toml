@@ -1,0 +1,21 @@
+[project]
+name = "llm-review-panels"
+version = "0.1.0"
+description = "Code for 'Second Opinions or Echoes? Shared Errors in LLM Review Panels'"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "scikit-learn>=1.5",
+    "pyyaml>=6",
+    "requests>=2.32",
+    "pymupdf>=1.24",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["peerreview"]
