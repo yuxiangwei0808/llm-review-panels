@@ -17,10 +17,16 @@ Model calls go through OpenRouter: set `OPENROUTER_API_KEY`. The analyses need o
 
 ## Data
 
-The review records, judge labels, and human annotations are released as a dataset whose `data/` and `results/` folders
-go in the repository root; its `DATA_README.md` describes every file. Results are organized by venue group (`iclr2021`,
-`iclr2022`, `neurips2022`, and `2023-25` for ICLR 2025, NeurIPS 2023, and ICML 2025), with the first reviews under
-`results/first_reviews/<model>/<venue>/`.
+The review records, judge labels, and human annotations are on Hugging Face
+([stanjsx/llm-review-panels](https://huggingface.co/datasets/stanjsx/llm-review-panels)); its `data/` and `results/`
+folders go in the repository root, and its `DATA_README.md` describes every file:
+
+```bash
+hf download stanjsx/llm-review-panels --repo-type dataset --include "data/*" "results/*" --local-dir .
+```
+
+Results are organized by venue group (`iclr2021`, `iclr2022`, `neurips2022`, and `2023-25` for ICLR 2025, NeurIPS
+2023, and ICML 2025), with the first reviews under `results/first_reviews/<model>/<venue>/`.
 
 ### Inputs for running models
 
