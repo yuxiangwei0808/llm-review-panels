@@ -123,7 +123,7 @@ ASSESSABILITY = ("supplied_material", "outside_information", "uncertain")
 
 def reviews_block(dossier: dict) -> tuple[str, str]:
     """(abstract, reviews) from a dossier's holistic text. Reviewer A, B, C ... become review ids
-    H00, H01, H02 ... (the frozen items' convention)."""
+    H00, H01, H02 ..."""
     text = dossier["holistic_text"]
     abstract = text.split("## Abstract\n", 1)[1].split("\n\n## ", 1)[0].strip()
     sections = re.split(r"\n## Reviewer ([A-Z])\n", text)

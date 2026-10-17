@@ -1,17 +1,8 @@
-# Pre-ChatGPT replication on ICLR 2022 papers whose human reviews were written in October-November 2021.
-# Roster: one model per provider (OpenAI, Google, Anthropic, DeepSeek, Zhipu, Alibaba, xAI, Moonshot).
-# The run also covers the paper's other four models; iclr2022_prechatgpt_study8.yaml analyses the
-# paper's own roster from the same score table. Papers, text, ratings: scripts/build_iclr2022_manifest.py.
-#   scripts/run_prechatgpt.sh                       # one process per model, all twelve
-#   python -m peerreview scores --models <the twelve> --venues iclr2022 --tag prechatgpt \
-#       --manifest data/manifests/iclr2022_prechatgpt.json --out results/iclr2022_prechatgpt/scores.csv
-#   python analysis/section3/core_bootstrap.py        with PEERREVIEW_EXPERIMENT=iclr2022_prechatgpt
-# Shared rubric (F_itemized) left out: only 6 of 300 dossiers have complete itemized evidence. Shared evidence
-# (F_holistic) deferred: its human-rating benchmark leaks; Figure 1 needs only call A.
+# The eight-family panel's first reviews on ICLR 2022 (reviewed before ChatGPT's release; tag prechatgpt).
+# Used by experiments/judge.py and experiments/human_coverage.py with PEERREVIEW_EXPERIMENT=iclr2022_prechatgpt;
+# outputs go to results/iclr2022_prechatgpt/content/.
 name: iclr2022_prechatgpt
 models: [gpt-5.6-terra, gemini-3.1-pro, claude-sonnet-5, deepseek-v4-flash-0731, glm-5.2,
          qwen3.8-2.4t-a95b, grok-4.7, kimi-k3]
 venues: [iclr2022]
-scores: results/iclr2022_prechatgpt/scores.csv
 manifest: data/manifests/iclr2022_prechatgpt.json
-settings: [own, own_rubric]      # shared evidence deferred until the leave-one-reviewer-out design

@@ -1,18 +1,10 @@
 ---
 id: call_a_role
 version: v1.0.0
-block: [panel_composition]
-purpose: >
-  M7 remedy arm ("role-diverse panel"). A fresh call-A review (the frozen call_a prompt, unchanged)
-  with one added section assigning the reviewer a focus role on the panel: soundness of the claims,
-  experiments and evaluation, clarity and reproducibility, or novelty and related work. Each paper's
-  eight reviewers get the four roles twice each, rotated across models by a seeded per-paper
-  assignment. The reviewer still reviews the whole paper and gives the usual holistic score.
-design_notes: >
-  The role text asks for extra attention to one aspect, not for a partial review, so the score stays
-  a holistic recommendation comparable with call A. Written before any M7 call.
-changelog: >
-  v1.0.0 (2026-09-30): first version.
+purpose: 'Roles. A first review with one added section assigning a focus: soundness of the claims, experiments and
+  evaluation, clarity and reproducibility, or novelty and related work. Each paper''s eight reviewers get the four
+  roles twice each, rotated across models by a seeded assignment.'
+notes: The reviewer still reviews the whole paper and gives the usual overall score.
 ---
 
 {own_review_prompt}

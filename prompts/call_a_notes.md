@@ -1,17 +1,11 @@
 ---
 id: call_a_notes
 version: v1.0.0
-block: [panel_interaction]
-purpose: >
-  E8 injection arms. The reviewer sees the paper, its own round-1 review, and three notes from
-  "another reader", then writes a replacement review. The notes are missed human-raised
-  weaknesses, already-mentioned ones, another paper's weaknesses, or neutral summary sentences;
-  the framing is identical in every arm.
-design_notes: >
-  Identical to call_a_second_look except for the notes block and one sentence naming it. The
-  notes are presented as possibly inaccurate so that the reviewer has to assess them.
-changelog: >
-  v1.0.0 (2026-09-30): first version.
+purpose: Notes. The reviewer sees the paper, its own first review, and three notes from "another reader", then writes
+  a replacement review. The notes are weaknesses the panel missed, weaknesses some reviewer raised, or another paper's
+  weaknesses; the framing is the same in every condition.
+notes: Identical to call_a_second_look except for the notes and one sentence introducing them. The notes are presented
+  as possibly inaccurate, so the reviewer has to assess them.
 ---
 
 {own_review_prompt}

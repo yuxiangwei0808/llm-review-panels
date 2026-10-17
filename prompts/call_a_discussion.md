@@ -1,17 +1,9 @@
 ---
 id: call_a_discussion
 version: v1.0.0
-block: [panel_interaction]
-purpose: >
-  E14 sharing arm ("share reviews"). The reviewer sees the paper, its own round-1 review, and
-  the round-1 reviews of the other panel members (text and score, anonymized, shuffled), then
-  writes a replacement review. The minimal reviewer-to-reviewer interaction stage of paper 1.
-design_notes: >
-  Identical to call_a_second_look except for the peer block and one sentence naming it. Peers
-  are labelled "Reviewer 1..k" in a seeded order per paper and reviewer; model identities are
-  not shown. Scores are shown because real review panels see each other's ratings.
-changelog: >
-  v1.0.0 (2026-09-30): first version.
+purpose: Discussion. The reviewer sees the paper, its own first review, and the other panel members' first reviews
+  with their scores (anonymized as Reviewer 1..k, in a seeded order), then writes a replacement review.
+notes: Identical to call_a_second_look except for the block of other reviews and one sentence introducing it.
 ---
 
 {own_review_prompt}

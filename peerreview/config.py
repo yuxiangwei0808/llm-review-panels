@@ -11,13 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIGS = ROOT / "configs"
 PROMPTS = ROOT / "prompts"
 DATA = ROOT / "data"
-# raw model outputs: <root>/<model>/<venue>/<experiment>/, kept under results/raw/ when present,
-# otherwise in res/ (the layout of the Hugging Face shards and of older checkouts)
-RAW_OUTPUTS = ROOT / "results" / "raw" if (ROOT / "results" / "raw").is_dir() else ROOT / "res"
-SEED = 20260727                     # study-wide seed (paper sampling, dossier shuffling)
+RAW_OUTPUTS = ROOT / "results" / "raw"   # first reviews: <model>/<venue>/<stage>_<tag>/ (records.py)
+SEED = 20260727                     # seed for paper sampling and review order
 MAX_OUTPUT_TOKENS = 8192
 TEMPERATURE = 1.0
-RUNS_PER_CELL = 3
 
 
 @dataclass(frozen=True)
@@ -49,7 +46,7 @@ class Venue:
 
 @dataclass(frozen=True)
 class Model:
-    key: str                     # folder name under res/ and model_id in every table
+    key: str                     # folder name under results/raw/ and model_id in every record
     family: str
     api_model: str               # OpenRouter identifier
     context_window_tokens: int

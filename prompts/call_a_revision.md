@@ -1,14 +1,8 @@
 ---
 id: call_a_revision
 version: v2.0.0
-block: [rebuttal]
-purpose: >
-  R6 one-round reviewer update. The complete rendered P0 Call-A prompt is frozen and
-  reused verbatim, then the reviewer's sanitized P0 output and one real or synthetic
-  author response are appended.
-design_notes: >
-  The model is asked for one complete replacement review, not a delta. The response
-  condition and every frozen upstream source are bound into the dependency hash.
+purpose: Revision after an author response. The first-review prompt, the reviewer's first review, and one author
+  response (the authors' real rebuttal, or a reply written to this review); the reviewer writes a replacement review.
 ---
 
 {baseline_prompt_prefix}{paper_text}{baseline_prompt_suffix}

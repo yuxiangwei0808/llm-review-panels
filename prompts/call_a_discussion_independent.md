@@ -1,18 +1,10 @@
 ---
 id: call_a_discussion_independent
 version: v1.0.0
-block: [panel_interaction]
-purpose: >
-  M6 remedy arm ("stay independent"). Identical to call_a_discussion (E14's sharing arm: own review,
-  peers' reviews with scores, same seeded peer order) plus one paragraph instructing the reviewer to
-  keep an independent judgment: use the other reviews only as a source of points to check against the
-  paper, and do not move toward the other reviewers' scores or conclusions because they are the
-  others'. The first remedy a practitioner would try against conformity.
-design_notes: >
-  The added paragraph is the only difference from call_a_discussion v1.0.0; everything else,
-  including the peer block, is byte-identical. Written before any M6 call.
-changelog: >
-  v1.0.0 (2026-09-30): first version.
+purpose: Discussion with an independence instruction. As call_a_discussion, plus one paragraph asking the reviewer
+  to use the other reviews only as points to check against the paper and not to move toward the other reviewers'
+  scores or conclusions.
+notes: The added paragraph is the only difference from call_a_discussion.
 ---
 
 {own_review_prompt}

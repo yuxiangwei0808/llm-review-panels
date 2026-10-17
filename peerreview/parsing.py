@@ -1,7 +1,6 @@
-"""Parse model responses into scores, review points and point ratings.
+"""Parse model responses into scores and review points.
 
-The parsers are validated against every saved record under ``res/``: re-parsing the stored
-``raw_response`` must give back the stored score, points and ratings (``tests/test_pipeline.py``).
+Re-parsing a saved record's ``raw_response`` gives back the record's score and points.
 """
 from __future__ import annotations
 
@@ -14,7 +13,6 @@ ITEM_PREFIX = re.compile(r"^\s*\[([^\]]+)\]\s*(.*)$", re.DOTALL)
 RATING_LINE = re.compile(r"RATING:\s*\**\s*(\d+)")
 ACCEPT_PROB_LINE = re.compile(r"ACCEPT_PROB:\s*\**\s*([01](?:\.\d+)?)\**\s*$", re.MULTILINE)
 DECISIVE_LINE = re.compile(r"DECISIVE_FACTOR:\s*(.+)")
-SEVERITIES = ("minor", "moderate", "major", "fatal", "decisive")  # "decisive" is the top strength label
 ESCAPE = re.compile(r"\\(u[0-9a-fA-F]{4}|.)", re.DOTALL)
 
 
@@ -25,8 +23,7 @@ class Parsed:
     score: int | None = None
     accept_prob: float | None = None
     reasoning: str = ""
-    items: list[dict] = field(default_factory=list)          # own review points (call A)
-    item_ratings: list[dict] = field(default_factory=list)   # rubric ratings (calls B, F-itemized)
+    items: list[dict] = field(default_factory=list)          # review points (call A)
     extra: dict = field(default_factory=dict)
 
 
@@ -109,9 +106,7 @@ def parse_own_review(raw: str, allowed: tuple[int, ...]) -> Parsed:
             match = ITEM_PREFIX.match(str(text))
             dimension, body = (match.group(1).strip(), match.group(2).strip()) if match \
                 else ("", str(text).strip())
-            items.append(dict(item_id=f"{tag}{k}", polarity=polarity, text=body,
-                              evidence_location="", dimension=dimension, source_model="",
-                              source_reviewer=""))
+            items.append(dict(item_id=f"{tag}{k}", polarity=polarity, text=body, dimension=dimension))
     prior = review.get("prior_knowledge")
     prior = prior if isinstance(prior, dict) else {"seen_before": prior or ""}
     extra = dict(seen_before=str(prior.get("seen_before", "")),
@@ -121,7 +116,7 @@ def parse_own_review(raw: str, allowed: tuple[int, ...]) -> Parsed:
 
 
 def parse_rating_lines(raw: str, allowed: tuple[int, ...]) -> Parsed:
-    """Call F-holistic: ``<reasoning>`` block, then DECISIVE_FACTOR / ACCEPT_PROB / RATING lines."""
+    """Call F_holistic: ``<reasoning>`` block, then DECISIVE_FACTOR / ACCEPT_PROB / RATING lines."""
     reasoning, rest = _reasoning(raw)
     ratings = RATING_LINE.findall(rest)
     if not ratings:
@@ -135,22 +130,3 @@ def parse_rating_lines(raw: str, allowed: tuple[int, ...]) -> Parsed:
                   accept_prob=float(prob[-1]) if prob else None,
                   extra=dict(decisive_factor=decisive[-1].strip() if decisive else ""))
 
-
-def parse_item_ratings(raw: str, expected_ids: list[str]) -> Parsed:
-    """Calls B and F-itemized: a JSON object rating every listed point exactly once."""
-    try:
-        ratings = _json_object(raw, "ratings")["ratings"]
-    except (ValueError, KeyError, TypeError) as error:
-        return Parsed(ok=False, error=f"{type(error).__name__}: {error}")
-    out, seen = [], set()
-    for rating in ratings:
-        item_id, severity = str(rating.get("item_id", "")), str(rating.get("severity", "")).lower()
-        if item_id not in expected_ids or item_id in seen or severity not in SEVERITIES:
-            return Parsed(ok=False, error=f"invalid rating for item {item_id!r}")
-        seen.add(item_id)
-        out.append(dict(item_id=item_id, severity=severity,
-                        confidence=float(rating.get("confidence", "nan")),
-                        justification=str(rating.get("justification", ""))))
-    if seen != set(expected_ids):
-        return Parsed(ok=False, error=f"{len(set(expected_ids) - seen)} items not rated")
-    return Parsed(ok=True, item_ratings=out)

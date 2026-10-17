@@ -1,12 +1,8 @@
 ---
 id: call_a_fresh_notes
 version: v1.0.0
-block: [panel_interaction]
-purpose: >
-  E8b anchoring check. A fresh call-A review (no earlier review or score shown) with three notes from
-  "another reader" given before the reviewer writes, framed exactly as in call_a_notes.
-changelog: >
-  v1.0.0 (2026-09-30): first version.
+purpose: Notes before a fresh review. A first review (no earlier review shown) with three notes from "another reader"
+  given before the reviewer writes, framed as in call_a_notes.
 ---
 
 {own_review_prompt}

@@ -1,20 +1,16 @@
-"""Human counterpart of the omission curve, computed the same way as the LLM curve.
+"""Human committees' coverage of human-raised weaknesses, judged the same way as the LLM reviews.
 
-Labels: for every paper and every human reviewer h (held out), the same matcher that judges LLM
-reviews judges whether each other reviewer's text mentions each weakness h raised. From these
-labels, the reported curve uses the same definition as the LLM curve: a committee of n human
-reviewers is scored against ALL human-raised weaknesses of the paper (a weakness is covered if a
-member raised it or mentions it), exact over all size-n committees, n = 1..4 on papers with exactly
-four reviewers (the large majority), with 2,000 paper-bootstrap intervals. At n = 4 the committee
-wrote the reference and misses nothing by construction. The per-held-out-reviewer variant (each
-reviewer's weaknesses as the reference, weighted once per raising reviewer) is kept as a column.
-``--recompute`` rebuilds the curves from the saved labels without any model calls.
+For every paper and every human reviewer h, the coverage judge (prompt match_points) labels whether each other
+reviewer's text raises each weakness h raised. From these labels, a committee of n human reviewers is scored against
+all human-raised weaknesses of the paper (a weakness is covered if a member raised it or the judge finds it in a
+member's review), exact over all size-n committees, n = 1..4, on papers with exactly four reviewers, with 2,000
+paper-bootstrap intervals. At n = 4 the committee wrote the reference and misses nothing by construction. A column
+keeps the held-out variant (each reviewer's weaknesses as the reference). --recompute rebuilds the curve from the saved
+labels without model calls. The human reviews (dossiers under data/dossiers/) are not distributed.
 
 Usage:
-  uv run python experiments/human_coverage.py --annotator gemini-3.5-flash-lite            # the paper's 332 papers
   PEERREVIEW_EXPERIMENT=iclr2022_prechatgpt uv run python experiments/human_coverage.py --annotator gemini-3.5-flash-lite
-Writes: results/content_rebuild/human_omission_matched_paper.{csv,json} or
-        results/<experiment>/content/human_omission_curve.{csv,json}, plus the per-pair labels.
+Writes: results/<experiment>/content/human_omission_curve.{csv,json}, plus the per-pair labels and records.
 """
 from __future__ import annotations
 
@@ -32,17 +28,12 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from peerreview import content
-from peerreview.analysis.experiment import current
+from peerreview.experiment import current
 from peerreview.client import OpenRouterClient
 from peerreview.config import ROOT, models
 from peerreview.papers import load_dossier
 
-CONTENT = ROOT / "data" / "processed" / "content"
 N_BOOT, SEED, MAX_POOL, REVIEWERS = 2000, 20260928, 4, 4   # papers with exactly 4 reviewers, n = 1..4
-
-
-def norm(text: str) -> str:
-    return re.sub(r"\s+", " ", text).lower()
 
 
 def sections_by_letter(dossier: dict) -> dict[str, str]:
@@ -50,28 +41,9 @@ def sections_by_letter(dossier: dict) -> dict[str, str]:
     return {parts[k]: parts[k + 1].strip() for k in range(1, len(parts), 2)}
 
 
-def review_texts(dossier: dict, points: list[dict], frozen: bool) -> dict[str, str]:
-    """Human review text per source id (H00, ...). The frozen items' ids follow an order that is
-    not recorded anywhere, so it is recovered per paper from the quotes; the rebuilt extractor
-    uses reviewer-letter order by construction."""
-    secs = sections_by_letter(dossier)
-    if not frozen:
-        return {f"H{ord(letter) - ord('A'):02d}": text for letter, text in secs.items()}
-    normed = {letter: norm(text) for letter, text in secs.items()}
-    votes: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
-    for p in points:
-        for s in p["sources"]:
-            quote = norm(s["quote"])[:50]
-            if quote:
-                for letter, text in normed.items():
-                    if quote in text:
-                        votes[s["review"]][letter] += 1
-    out = {}
-    for hid, counter in votes.items():
-        (best, n), *rest = counter.most_common()
-        if not rest or n > 2 * rest[0][1]:
-            out[hid] = secs[best]
-    return out
+def review_texts(dossier: dict) -> dict[str, str]:
+    """Human review text per source id: H00, H01, ... in reviewer-letter order (Reviewer A = H00)."""
+    return {f"H{ord(letter) - ord('A'):02d}": text for letter, text in sections_by_letter(dossier).items()}
 
 
 def main():
@@ -84,19 +56,11 @@ def main():
                         help="rebuild the curves from the saved labels; no model calls")
     args = parser.parse_args()
     experiment = current()
-    frozen = experiment.is_paper
-
-    if frozen:
-        inventory = pd.read_csv(CONTENT / "paper_inventory.csv").set_index("paper_id")
-        venue_of = inventory.venue.to_dict()
-        items_path, labels_path = CONTENT / "reference_items.jsonl", CONTENT / "coverage_labels.csv"
-        out_dir, stem = ROOT / "results" / "content_rebuild", "human_omission_matched_paper"
-    else:
-        manifest = json.loads(experiment.manifest.read_text())["papers"]
-        venue_of = {p["paper_id"]: p["venue_key"] for p in manifest}
-        out_dir = ROOT / "results" / experiment.name / "content"
-        items_path, labels_path = out_dir / "reference_items.jsonl", out_dir / "coverage_labels.csv"
-        stem = "human_omission_curve"
+    manifest = json.loads(experiment.manifest.read_text())["papers"]
+    venue_of = {p["paper_id"]: p.get("venue_key", experiment.venues[0]) for p in manifest}
+    out_dir = ROOT / "results" / experiment.name / "content"
+    items_path, labels_path = out_dir / "reference_items.jsonl", out_dir / "coverage_labels.csv"
+    stem = "human_omission_curve"
     points: dict[str, list[dict]] = {}
     for line in items_path.open():
         item = json.loads(line)
@@ -107,7 +71,7 @@ def main():
                               args.max_usd)
     jobs, skipped = [], collections.Counter()
     for pid, pts in points.items():
-        texts = review_texts(load_dossier(venue_of[pid], pid), pts, frozen)
+        texts = review_texts(load_dossier(venue_of[pid], pid))
         weak = [p for p in pts if p["polarity"] == "weakness"]
         for hid in sorted(texts):
             mine = [p for p in weak if any(s["review"] == hid for s in p["sources"])]
@@ -165,7 +129,7 @@ def main():
 
     # LLM curve with the same held-out weighting: each weakness once per reviewer who raised it.
     llm = pd.read_csv(labels_path)
-    llm = llm[llm.model.isin(experiment.models)] if not frozen else llm
+    llm = llm[llm.model.isin(experiment.models)]
     llm_rec = llm[llm.recognition.isin(["specific", "partial"])]
     n_llm = llm.groupby("paper_id").review_id.nunique()
     llm_pairs: dict[str, list[tuple[int, int]]] = collections.defaultdict(list)

@@ -1,14 +1,9 @@
 ---
 id: author_targeted_v2
 version: v2.0.0
-block: [rebuttal]
-purpose: >
-  Draft one natural targeted author response using only the complete submitted paper and
-  authentic author rebuttal as sources for factual and empirical claims.
-design_notes: >
-  The prompt uses the exact untrimmed paper text and scoring-relevant P0 review frozen for
-  the paired R6-real condition. Output is plain text and is stored verbatim. There is no
-  source catalog, response-unit schema, fallback template, or local rewriting.
+purpose: Reply to an LLM's own review (ICLR 2022). Writes the authors' response to one LLM review, using only the
+  submitted paper and the authors' real rebuttal as sources for factual claims.
+notes: Plain-text output, stored verbatim.
 ---
 
 Act as the paper's authors and draft a concise rebuttal addressing the target review.

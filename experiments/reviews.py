@@ -1,11 +1,14 @@
-"""First reviews: each panel model reads a paper and writes a review with a score (prompt call_a).
+"""First reviews: each panel model reads a paper and writes a review with a score (call A, prompt call_a).
+
+With --calls F_holistic, each model instead scores the paper from the human reviews with ratings removed (prompt
+call_f_holistic), which needs the human-review dossiers under data/dossiers/.
 
 Calls models through OpenRouter (set OPENROUTER_API_KEY) and needs the paper texts, which are not distributed: the
 papers are public on OpenReview under the ids in data/manifests/, and peerreview.papers extracts their text.
 Responses are cached under cache/, so a rerun resumes for free.
 
 Usage:  uv run python experiments/reviews.py iclr2025 --models kimi-k3 grok-4.7 --tag panel8f --max-usd 50
-Writes: results/raw/<model>/<venue>/paper_review_<tag>/paper_review.jsonl
+Writes: results/raw/<model>/<venue>/paper_review_<tag>/paper_review.jsonl (F_holistic: fixed_evidence_<tag>/)
 """
 import argparse
 import json
@@ -29,6 +32,7 @@ def main():
     ap.add_argument("venue", help="iclr2021 | iclr2022 | neurips2022 | iclr2025 | neurips2023 | icml2025")
     ap.add_argument("--models", nargs="+", required=True, choices=sorted(models()))
     ap.add_argument("--tag", required=True, help="names the output folder paper_review_<tag>")
+    ap.add_argument("--calls", nargs="+", default=["A"], choices=["A", "F_holistic"])
     ap.add_argument("--runs", type=int, default=1, help="independent reviews per paper and model")
     ap.add_argument("--max-usd", type=float, required=True, help="hard spending ceiling")
     a = ap.parse_args()
@@ -37,7 +41,7 @@ def main():
     if "venue_key" not in papers:
         papers["venue_key"] = a.venue
     client = OpenRouterClient(ROOT / "cache" / "responses" / a.tag, a.max_usd)
-    runner.run(client, a.venue, a.models, papers[papers.venue_key == a.venue], tag=a.tag, calls=("A",), runs=a.runs)
+    runner.run(client, a.venue, a.models, papers[papers.venue_key == a.venue], tag=a.tag, calls=tuple(a.calls), runs=a.runs)
 
 
 if __name__ == "__main__":

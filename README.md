@@ -1,10 +1,11 @@
-# Second Opinions or Echoes? Shared Errors in LLM Review Panels
+# LLM Review Panels
 
-Code for the paper (anonymized for review). Panels of eight LLMs from eight model families review 1,404 submissions to
-six machine learning venues (ICLR 2021, ICLR 2022, NeurIPS 2022, ICLR 2025, NeurIPS 2023, ICML 2025), and we compare
-them with the recorded human process through independent review, rebuttal, discussion, and the area chair's decision.
+Panels of LLM reviewers taken through the stages of peer review: independent review, rebuttal, discussion, and the
+area chair's decision. The code runs the panels through OpenRouter, judges which weaknesses raised by human reviewers
+each LLM review also raises, and analyzes the saved records. It accompanies the paper *Second Opinions or Echoes? Shared
+Errors in LLM Review Panels*.
 
-## Setup
+## Installation
 
 Requirements: Python 3.12 and [uv](https://docs.astral.sh/uv/).
 
@@ -12,87 +13,93 @@ Requirements: Python 3.12 and [uv](https://docs.astral.sh/uv/).
 uv sync
 ```
 
-The data (review records, judge labels, annotations, corpora) are in `dataset.zip`, provided with the submission.
-Unzip it in this folder; it creates `data/` and `results/`.
+Model calls go through OpenRouter: set `OPENROUTER_API_KEY`. The analyses need only the data.
 
-## Reproduce the main results
+## Data
 
-These scripts read the saved records and make no model calls. Each writes a JSON file to `outputs/` and prints the
-numbers reported in the paper.
+The review records, judge labels, and human annotations are in `dataset.zip`. Unzip it in the repository root; it
+creates `data/` and `results/`, and its `DATA_README.md` describes every file.
 
-| Script | Paper | Runtime |
+Running models needs inputs that are not distributed: the paper texts, the human reviews (`data/dossiers/<venue>/`),
+and the OpenReview forum threads for author responses (`data/raw/openreview_corpus/<venue>/forums.jsonl`). The papers
+and reviews are public on OpenReview under the ids in `data/manifests/`.
+
+## Repository structure
+
+```
+peerreview/    library: model client, configuration, prompts, parsing, records, review runner, coverage judge, area chair
+experiments/   scripts that run the panels and the judge (model calls)
+analysis/      scripts that compute results from the saved records (no model calls)
+configs/       models, venues, and experiment settings
+prompts/       prompt templates
+```
+
+### `peerreview`
+
+| Module | Contents |
+|---|---|
+| `client.py` | Model calls through OpenRouter, with an on-disk response cache and a cost ceiling |
+| `config.py` | Venue and model settings from `configs/*.yaml` |
+| `prompts.py` | Loads the templates in `prompts/` and fills their fields |
+| `parsing.py` | Parses model responses into scores and review items |
+| `records.py` | Reads and writes per-call records, one JSON object per line |
+| `papers.py` | Paper lists, the paper text a model reads, and the human-review dossiers |
+| `runner.py` | First reviews for a set of papers and models |
+| `content.py` | Weakness extraction from human reviews and the coverage judge |
+| `area_chair.py` | The area-chair prompt and the parser of its decision |
+| `experiment.py` | Experiment selection for the coverage judge (`PEERREVIEW_EXPERIMENT`) |
+
+## Running the panels
+
+The scripts in `experiments/` call models; each script's docstring gives its options, and every model call takes a
+spending ceiling (`--max-usd`). Responses are cached under `cache/`, so a rerun resumes where it stopped. The scripts
+after first reviews select the venue with the environment variable `PANEL_CORPUS` (`iclr2021`, `iclr2022`,
+`neurips2022`, or `2023-25`); the coverage judge selects a panel and venues with `PEERREVIEW_EXPERIMENT` (a config
+in `configs/experiments/`).
+
+```bash
+uv run python experiments/reviews.py iclr2025 --models kimi-k3 grok-4.7 --tag panel8f --max-usd 50
+PANEL_CORPUS=iclr2021 uv run python experiments/discussion.py run --arms second_look discussion --max-usd 300
+PEERREVIEW_EXPERIMENT=iclr2021_prechatgpt uv run python experiments/judge.py match --annotator gemini-3.5-flash-lite --tag prechatgpt
+```
+
+| Script | Runs | Prompts |
 |---|---|---|
-| `analysis/scaling.py` | Figure 1 and Table 1: gains from adding LLMs vs. adding human reviewers | 4 min |
-| `analysis/shared_errors.py` | Section 3.1 and Figure 4: missed weaknesses, error correlation vs. human reviewers | 6 min |
-| `analysis/review_cycle.py` | Sections 3.2–3.3 and Table 2: rebuttal, discussion, area chairs | 4 min |
-| `analysis/remedies.py` | Section 4 and Table 3: the remedies | 12 min |
-| `analysis/score_shifts.py` | Section 5 and Figure 5: scores shift together | 6 min |
+| `reviews.py` | First reviews; with `--calls F_holistic`, scores from the human reviews instead | `call_a`, `call_f_holistic` |
+| `judge.py` | `extract`: the weaknesses in each paper's human reviews; `match`: the coverage judge's labels of the first reviews | `extract_points`, `match_points` |
+| `human_coverage.py` | The coverage judge applied to human committees | `match_points` |
+| `discussion.py` | `run`: plain revision; discussion with the other reviews, with scores hidden, with verdicts hidden, or with an instruction to judge independently; revision after author responses or after a reply to the reviewer's own review. `coverage`: the coverage judge on the revisions | `call_a_second_look`, `call_a_discussion*`, `call_a_revision`, `author_targeted_v2` |
+| `notes.py` | `run`: revision or fresh review after notes with weaknesses the panel missed, and control notes. `adoption`: which notes the reviews raise | `call_a_notes`, `call_a_fresh_notes`, `match_points` |
+| `roles.py` | `run`: first reviews with an assigned focus. `coverage`: the coverage judge on them | `call_a_role`, `match_points` |
+| `area_chairs.py` | Area-chair decisions from the human reviews or the panel's first reviews | `ac_binary` |
+| `forums.py`, `verdict_mask.py` | Helpers: OpenReview forum threads; masking of scores and verdict sentences | |
+
+## Analyses
+
+The scripts in `analysis/` read the saved records and make no model calls. Each prints its results and writes a JSON
+file to `outputs/`. `common.py` holds the data loading and the measures.
 
 ```bash
 uv run python analysis/scaling.py
 ```
 
-`analysis/common.py` holds the data loading and the measures (held-out correlation, miss rate, error correlation,
-panel error, decision AUROC, score correlation).
+| Script | Computes | Runtime |
+|---|---|---|
+| `scaling.py` | Correlation with a held-out human rating as LLM panels grow from one to eight models and human committees from one to three reviewers | 4 min |
+| `shared_errors.py` | Miss rate of pooled reviews, missed weaknesses by kind, and the error correlation of model pairs and human pairs | 6 min |
+| `review_cycle.py` | Score changes after rebuttal, discussion against a plain revision, and unanimous area-chair errors | 4 min |
+| `remedies.py` | Each remedy against its matched comparison: panel error, decision AUROC, score correlation, error correlation, miss rate | 12 min |
+| `score_shifts.py` | How each remedy moves the panel's scores: share of scores lowered, and the change in score and error correlation | 6 min |
 
-## Run the experiments
+In the paper, these give Figure 1 and Table 1 (`scaling.py`), Section 3.1 and Figure 4 (`shared_errors.py`), Sections
+3.2–3.3 and Table 2 (`review_cycle.py`), Section 4 and Table 3 (`remedies.py`), and Section 5 and Figure 5
+(`score_shifts.py`).
 
-These scripts produced the records in `results/`. They call models through OpenRouter (set `OPENROUTER_API_KEY`) and
-need the paper texts, which are not distributed: the papers are public on OpenReview under the ids in
-`data/manifests/`. Each script's docstring gives its usage; responses are cached, so reruns resume. The runners
-for revisions and area chairs select the venues with the environment variable `PANEL_CORPUS` (`iclr2021`,
-`iclr2022`, `neurips2022`, or `2023-25`).
+## Configuration
 
-| Script | Stage |
+| File | Contents |
 |---|---|
-| `experiments/reviews.py` | First reviews (prompt `call_a`) |
-| `experiments/discussion.py` | Plain revision, discussion and its restrictions, rebuttal |
-| `experiments/notes.py` | Notes with missed weaknesses, and their controls |
-| `experiments/roles.py` | Reviews with an assigned aspect |
-| `experiments/area_chairs.py`, `experiments/area_chairs_iclr2022.py` | Nine LLM area chairs |
-| `experiments/judge.py` | Weakness extraction from human reviews and the coverage judge |
-| `experiments/human_coverage.py` | Human committees' coverage (Figure 4's human curve) |
-
-`experiments/forums.py` and `experiments/verdict_mask.py` are helpers. Models are configured in
-`configs/models.yaml`, venues and their rating scales in `configs/venues.yaml`, and the prompts are in `prompts/`.
-
-## Layout
-
-| Path | Contents |
-|---|---|
-| `analysis/` | The main results from the saved records |
-| `experiments/` | The scripts that ran the panel |
-| `peerreview/` | Model client, prompt rendering, response parsing, review runner, coverage judge, area chair |
-| `prompts/` | Prompt templates of the reported experiments |
-| `configs/` | Models, venues, and the first-review runs |
-
-## Data guide
-
-| Path (after unzipping `dataset.zip`) | Contents |
-|---|---|
-| `data/manifests/` | The six corpora: OpenReview ids, titles, abstracts, decisions, and human ratings |
-| `results/raw/<model>/<venue>/<run>/paper_review.jsonl` | First reviews: items, reasoning, raw response, score, token usage |
-| `results/<venue>/discussion/` | Revisions after a plain revision, discussion and its restrictions (`records.jsonl`), and rebuttal (`records_rebuttal.jsonl`) |
-| `results/<venue>/injection/`, `results/<venue>/roles/` | Notes and roles |
-| `results/<venue>/area_chair/` | Meta-reviews and decisions of the nine LLM area chairs |
-| `results/<venue>/content/` | Weaknesses extracted from the human reviews and the judge's labels |
-
-`<venue>` is `iclr2021_prechatgpt`, `iclr2022_prechatgpt`, `neurips2022_prechatgpt`, or `study2325` (ICLR 2025,
-NeurIPS 2023, ICML 2025; their notes and judge labels are in `study2325_panel8f`). The field `arm` in the records
-names the condition:
-
-| `arm` | Condition in the paper |
-|---|---|
-| `second_look` | Plain revision (control) |
-| `discussion` | Discussion: peers' reviews with scores |
-| `discussion_text`, `discussion_masked` | Hidden scores; hidden verdicts |
-| `discussion_independent` | Independence instruction |
-| `rebuttal`, `llm_rebuttal` | Author responses; replies written to each LLM's review (ICLR 2022) |
-| `missed`, `mentioned`, `false`, `neutral` | Notes; control notes already raised, from another paper, or neutral |
-| `fresh_missed`, `fresh_false` | Notes before a fresh review |
-| `H0`, `P0` | Area chairs reading human reviews or the panel's reviews |
-
-## License
-
-Paper metadata and human ratings come from OpenReview and remain under their original terms. A license for the code
-and the generated data will be added with the public release.
+| `configs/models.yaml` | Each model's OpenRouter id, family, context window, and request settings |
+| `configs/venues.yaml` | Each venue's rating scale, accept threshold, and review-form wording |
+| `configs/experiments/*.yaml` | The eight-family panel on each venue group (models, venues, paper manifest), for the coverage judge |
+| `prompts/*.md` | Prompt templates: a YAML header and a body with `{placeholder}` fields |

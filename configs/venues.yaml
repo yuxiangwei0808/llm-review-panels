@@ -1,4 +1,4 @@
-# One entry per venue. To add a venue, copy an entry and fill in every field; see docs/EXTEND_VENUE.md.
+# One entry per venue. To add a venue, copy an entry and fill in every field.
 #
 # prompt_name   venue name as written into prompts
 # short_name    used in "probability <short_name> accepts this paper"
@@ -77,9 +77,7 @@ icml2025:
     strengths_field: null
     weaknesses_field: null
 
-# ICLR 2022: reviews written October-November 2021, before ChatGPT. Same six-point scale and wording
-# as ICLR 2025. The 2022 form had one free-text `main_review` instead of strengths/weaknesses fields;
-# the frozen dossiers in data/dossiers/iclr2022/v5/ already carry the itemized version. API v1.
+# ICLR 2021: reviews written October-November 2020, before ChatGPT. One free-text review field. API v1.
 iclr2021:
   name: ICLR 2021
   prompt_name: ICLR 2021 (International Conference on Learning Representations)
@@ -109,6 +107,8 @@ iclr2021:
     strengths_field: null
     weaknesses_field: null
 
+# ICLR 2022: reviews written October-November 2021, before ChatGPT. Same six-point scale and wording as ICLR 2025;
+# the form had one free-text `main_review` field instead of strengths and weaknesses. API v1.
 iclr2022:
   name: ICLR 2022
   prompt_name: ICLR 2022 (International Conference on Learning Representations)
@@ -134,7 +134,7 @@ iclr2022:
     strengths_field: null
     weaknesses_field: null
 
-# NeurIPS 2022: reviews written July-August 2022, before ChatGPT (S5). API v1. Rejected papers are public only
+# NeurIPS 2022: reviews written July-August 2022, before ChatGPT. API v1. Rejected papers are public only
 # when their authors opted in; withdrawn papers are not public. Same ten-point form as NeurIPS 2023.
 neurips2022:
   name: NeurIPS 2022

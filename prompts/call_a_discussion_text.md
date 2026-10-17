@@ -1,16 +1,8 @@
 ---
 id: call_a_discussion_text
 version: v1.0.0
-block: [panel_interaction]
-purpose: >
-  E14b. As call_a_discussion, but the other reviewers' reviews are shown without their scores, to
-  separate updating on peers' arguments from updating on peers' scores.
-design_notes: >
-  Identical to call_a_discussion except that the peer headings carry no score and one sentence says
-  the scores are withheld. The peers' public justifications may still contain qualitative verdict
-  language (the call-A prompt allows it), which is part of the text.
-changelog: >
-  v1.0.0 (2026-09-30): first version.
+purpose: Discussion with hidden scores. As call_a_discussion, but the other reviews are shown without their scores.
+notes: The hidden-verdicts condition uses this prompt with verdict phrases also masked in the other reviews (experiments/verdict_mask.py).
 ---
 
 {own_review_prompt}

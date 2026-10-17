@@ -1,27 +1,10 @@
 ---
 id: extract_points
 version: v1.2.0
-block: [content]
-purpose: >
-  Content analysis, extraction step (rebuild). Turn a paper's human reviews into the list of
-  distinct points the reviewers raised, merged across reviewers, each classified and tied to the
-  reviewers' own words. These are the reference points the matching step (match_points) checks
-  model reviews against; the weaknesses among them define the omission curve (Figure 1b).
-design_notes: >
-  The original extraction code was lost; this template is rebuilt to reproduce the fields of
-  data/processed/content/reference_items.jsonl (polarity, category, kind, assessability with a
-  reason, one-sentence text, sources with verbatim quotes) and is validated against those items
-  (scripts/validate_extractor.py) on point counts, category mix and two-way coverage.
-changelog: >
-  v1.2.0 (2026-09-28): granularity set to one point per distinct concern (v1.1.0 overshot: 33
-  points per paper vs 27, 20 weaknesses vs 15; weakness recall 0.75, precision 0.89). JSON mode
-  is requested from the provider; one paper's output never parsed under v1.0-1.1.
-
-  v1.1.0 (2026-09-28): exhaustive, fine-grained extraction and category guidance. v1.0.0 merged
-  or dropped about a third of the frozen weaknesses (22 points per paper vs 27; weakness recall
-  0.67, precision 0.95) and under-used "soundness".
-
-  v1.0.0 (2026-09-28): first rebuilt version.
+purpose: Weakness extraction. Turns a paper's human reviews into the distinct points the reviewers raised, merged
+  across reviewers; each point is classified (polarity, category, kind) and tied to quotes from the reviews. The
+  coverage judge (match_points) checks reviews against these points.
+notes: One point per distinct concern; JSON output.
 ---
 
 You are annotating the human peer reviews of a machine-learning paper for a content analysis.

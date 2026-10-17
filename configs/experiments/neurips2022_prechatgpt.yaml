@@ -1,13 +1,8 @@
-# S5: pre-ChatGPT venue other than ICLR. NeurIPS 2022 papers whose reviews were written in July-August 2022.
-# Sample frozen by scripts/freeze_neurips2022_sample.py; text and dossiers by scripts/build_iclr2021.py --venue neurips2022 (183 of 184
-# papers have extractable PDF text). Roster: the eight-family panel. One run of call A (own evidence).
-#   results/neurips2022_prechatgpt/run_panel.sh
-#   python -m peerreview scores --models <the eight> --venues neurips2022 --tag prechatgpt \
-#       --manifest data/manifests/neurips2022_prechatgpt_run.json --out results/neurips2022_prechatgpt/scores.csv
+# The eight-family panel's first reviews on NeurIPS 2022 (reviewed before ChatGPT's release; tag prechatgpt).
+# Used by experiments/judge.py and experiments/human_coverage.py with PEERREVIEW_EXPERIMENT=neurips2022_prechatgpt;
+# outputs go to results/neurips2022_prechatgpt/content/.
 name: neurips2022_prechatgpt
 models: [gpt-5.6-terra, gemini-3.1-pro, claude-sonnet-5, deepseek-v4-flash-0731, glm-5.2,
          qwen3.8-2.4t-a95b, grok-4.7, kimi-k3]
 venues: [neurips2022]
-scores: results/neurips2022_prechatgpt/scores.csv
 manifest: data/manifests/neurips2022_prechatgpt_run.json
-settings: [own]

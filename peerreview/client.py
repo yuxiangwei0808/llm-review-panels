@@ -29,7 +29,7 @@ class _Response:
 def _post_with_deadline(headers: dict, body: dict) -> _Response:
     """POST and read the body under a hard wall-clock deadline. A plain ``requests`` timeout only
     bounds the silence between bytes, so a connection that keeps trickling bytes can hang a worker
-    for hours (this happened to six model runs at once on 2026-09-28)."""
+    for hours."""
     started = time.monotonic()
     with requests.post(URL, headers=headers, data=json.dumps(body), stream=True,
                        timeout=(CONNECT_TIMEOUT_S, READ_TIMEOUT_S)) as response:

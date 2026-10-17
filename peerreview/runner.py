@@ -1,16 +1,12 @@
-"""Run the four scoring settings for a set of papers and models.
+"""Run models on a set of papers and save one record per call.
 
 Per paper, model and run:
 
-* own evidence (call ``A``): the model reviews the masked paper and chooses a score;
-* own-review rubric (call ``B``): it rates each point of that review; a fixed rule scores;
-* shared evidence (call ``F_holistic``): it scores the human reviews, ratings removed;
-* shared rubric (call ``F_itemized``): it rates each human point; the fixed rule scores.
+* call ``A``: the model reviews the paper (title withheld) and chooses a score;
+* call ``F_holistic``: the model scores the paper from the human reviews, ratings removed, instead of its own review.
 
-Outputs follow the layout of the runs behind the paper (see ``records.py``), so
-``scoring.score_table`` and every analysis script read new runs without changes. A run can be
-interrupted and restarted: cells already saved with a successful parse are skipped, and the
-client's cache means no request is paid for twice.
+Records follow the layout in ``records.py``. A run can be interrupted and restarted: cells already saved with a
+successful parse are skipped, and the client's cache means no request is paid for twice.
 """
 from __future__ import annotations
 
@@ -26,29 +22,16 @@ from pathlib import Path
 import pandas as pd
 
 from . import parsing, prompts, records
-from .config import (
-    MAX_OUTPUT_TOKENS,
-    RAW_OUTPUTS,
-    RUNS_PER_CELL,
-    SEED,
-    TEMPERATURE,
-    Model,
-    Venue,
-    models,
-    venues,
-)
-from .papers import abstract_of, load_dossier, paper_text
+from .config import MAX_OUTPUT_TOKENS, RAW_OUTPUTS, TEMPERATURE, Model, Venue, models, venues
+from .papers import load_dossier, paper_text
 
 SAFETY_MARGIN_TOKENS = 1024
 MAX_ATTEMPTS = 3            # fresh samples of a cell whose response does not parse
 PROGRESS_EVERY = 25         # paper-runs between progress lines
 CONTEXT_NOTE = ("\n\nCONTEXT-LIMIT NOTE: the paper text was cut here to fit this model's context "
                 "window. Material after this point exists in the submission but is not shown.")
-TEMPLATE = {"A": "call_a", "B": "call_b", "F_holistic": "call_f_holistic",
-            "F_itemized": "call_f_itemized"}
-STAGE = {"A": "paper_review", "B": "paper_review", "F_holistic": "fixed_evidence",
-         "F_itemized": "fixed_evidence"}
-ALL_CALLS = ("A", "B", "F_holistic", "F_itemized")
+TEMPLATE = {"A": "call_a", "F_holistic": "call_f_holistic"}
+STAGE = {"A": "paper_review", "F_holistic": "fixed_evidence"}
 
 
 def fit_to_context(text: str, model: Model, prompt_overhead_bytes: int) -> tuple[str, bool]:
@@ -59,10 +42,6 @@ def fit_to_context(text: str, model: Model, prompt_overhead_bytes: int) -> tuple
     if len(encoded) <= budget:
         return text, False
     return encoded[:budget].decode("utf-8", errors="ignore") + CONTEXT_NOTE, True
-
-
-def order_items(items: list[dict], paper_id: str, run_idx: int) -> list[dict]:
-    return prompts.presentation_order(items, paper_id, run_idx, SEED)
 
 
 class RunWriter:
@@ -79,7 +58,7 @@ class RunWriter:
             for line in self.path.open():
                 r = json.loads(line)
                 key = (r["paper_id"], r["run_idx"], r["call_type"])
-                # An own review without points cannot feed call B: not done, sample it again.
+                # A review without strengths or weaknesses is sampled again: the coverage judge needs its points.
                 if r["parse_ok"] and not (r["call_type"] == "A" and not r["items"]):
                     self.done.add(key)
                 else:
@@ -97,17 +76,6 @@ class RunWriter:
         with self.lock, self.path.open("a") as out:
             out.write(json.dumps(record, ensure_ascii=False) + "\n")
             self.done.add((record["paper_id"], record["run_idx"], record["call_type"]))
-
-    def last_ok(self, paper_id: str, run_idx: int, call_type: str) -> dict | None:
-        found = None
-        if self.path.exists():
-            for line in self.path.open():
-                if paper_id in line:
-                    r = json.loads(line)
-                    if (r["paper_id"], r["run_idx"], r["call_type"], r["parse_ok"]) == \
-                            (paper_id, run_idx, call_type, True):
-                        found = r
-        return found
 
 
 def _call(client, writer: RunWriter, model: Model, venue: Venue, paper_id: str, run_idx: int,
@@ -149,10 +117,8 @@ def _record(writer, model, venue, paper_id, run_idx, call_type, prompt_sha, arti
         run_idx=run_idx, model_snapshot=usage.get("execution_model", model.api_model),
         temperature=temperature, prompt_hash=prompts.sha256(prompts.load_template(
             TEMPLATE[call_type])[1]), prompt_version=header["version"], input_hash=prompt_sha,
-        dependency_hash="", execution_model=usage.get("execution_model", model.api_model),
-        emitted_score=parsed.score, distribution=None, accept_prob=parsed.accept_prob,
-        items=parsed.items, item_ratings=[dict(r, distribution=None, rater_model=model.key)
-                                          for r in parsed.item_ratings],
+        execution_model=usage.get("execution_model", model.api_model),
+        emitted_score=parsed.score, accept_prob=parsed.accept_prob, items=parsed.items,
         reasoning_text=parsed.reasoning, raw_response=text, parse_ok=parsed.ok,
         parse_error=parsed.error,
         usage={k: usage.get(k) for k in ("input_tokens", "output_tokens", "reasoning_tokens",
@@ -167,8 +133,7 @@ def _record(writer, model, venue, paper_id, run_idx, call_type, prompt_sha, arti
 
 
 def _with_points(parsed: parsing.Parsed) -> parsing.Parsed:
-    """An own review with no strengths or weaknesses cannot feed the rubric call (B), so the cell
-    is treated as unparsed and sampled again. Every own review behind the paper has points."""
+    """A review with no strengths or weaknesses is treated as unparsed and sampled again."""
     if parsed.ok and not parsed.items:
         return parsing.Parsed(ok=False, error="no review points", reasoning=parsed.reasoning)
     return parsed
@@ -177,43 +142,24 @@ def _with_points(parsed: parsing.Parsed) -> parsing.Parsed:
 def run_paper(client, model: Model, venue: Venue, paper: pd.Series, run_idx: int,
               calls: tuple[str, ...], review: RunWriter, fixed: RunWriter) -> None:
     pid = paper.paper_id
-    if "A" in calls or "B" in calls:
-        own = review.last_ok(pid, run_idx, "A") if (pid, run_idx, "A") in review.done else None
-        if own is None and "A" in calls:
-            overhead = len(prompts.own_review(venue, "").encode())
-            text, trimmed = fit_to_context(paper_text(paper), model, overhead)
-            paper_artifact, paper_sha = review.artifact("paper_inputs", text, ".md")
-            own = _call(client, review, model, venue, pid, run_idx, "A",
-                        prompts.own_review(venue, text),
-                        lambda raw: _with_points(parsing.parse_own_review(raw, venue.scores)),
-                        dict(paper_text_artifact=paper_artifact, paper_text_sent_sha256=paper_sha,
-                             paper_text_context_trimmed=trimmed))
-        if "B" in calls and own and own["parse_ok"] and own["items"] \
-                and (pid, run_idx, "B") not in review.done:
-            ids = [item["item_id"] for item in own["items"]]
-            shown = order_items(own["items"], pid, run_idx)
-            _call(client, review, model, venue, pid, run_idx, "B",
-                  prompts.rubric("call_b", venue, paper.abstract, shown),
-                  lambda raw: parsing.parse_item_ratings(raw, ids),
-                  dict(form="itemized", depends_on_call_a_run=str(run_idx)))
-    if "F_holistic" in calls or "F_itemized" in calls:
+    if "A" in calls and (pid, run_idx, "A") not in review.done:
+        overhead = len(prompts.own_review(venue, "").encode())
+        text, trimmed = fit_to_context(paper_text(paper), model, overhead)
+        paper_artifact, paper_sha = review.artifact("paper_inputs", text, ".md")
+        _call(client, review, model, venue, pid, run_idx, "A", prompts.own_review(venue, text),
+              lambda raw: _with_points(parsing.parse_own_review(raw, venue.scores)),
+              dict(paper_text_artifact=paper_artifact, paper_text_sent_sha256=paper_sha,
+                   paper_text_context_trimmed=trimmed))
+    if "F_holistic" in calls and (pid, run_idx, "F_holistic") not in fixed.done:
         dossier = load_dossier(venue.key, pid)
-        if "F_holistic" in calls and (pid, run_idx, "F_holistic") not in fixed.done:
-            _call(client, fixed, model, venue, pid, run_idx, "F_holistic",
-                  prompts.shared_evidence(venue, dossier["holistic_text"]),
-                  lambda raw: parsing.parse_rating_lines(raw, venue.scores), dict(form="holistic"))
-        if "F_itemized" in calls and dossier.get("itemized_evidence_complete", True) \
-                and dossier["items"] and (pid, run_idx, "F_itemized") not in fixed.done:
-            ids = [item["item_id"] for item in dossier["items"]]
-            _call(client, fixed, model, venue, pid, run_idx, "F_itemized",
-                  prompts.rubric("call_f_itemized", venue, abstract_of(dossier), dossier["items"]),
-                  lambda raw: parsing.parse_item_ratings(raw, ids), dict(form="itemized"))
+        _call(client, fixed, model, venue, pid, run_idx, "F_holistic",
+              prompts.shared_evidence(venue, dossier["holistic_text"]),
+              lambda raw: parsing.parse_rating_lines(raw, venue.scores), dict(form="holistic"))
 
 
 def run(client, venue_key: str, model_keys: list[str], papers: pd.DataFrame, tag: str,
-        calls: tuple[str, ...] = ALL_CALLS, runs: int = RUNS_PER_CELL, workers: int = 8,
-        root: Path = RAW_OUTPUTS) -> None:
-    """Run ``calls`` for every paper x model x run and write ``res/<model>/<venue>/<stage>_<tag>``."""
+        calls: tuple[str, ...] = ("A",), runs: int = 1, workers: int = 8, root: Path = RAW_OUTPUTS) -> None:
+    """Run ``calls`` for every paper x model x run and write ``<root>/<model>/<venue>/<stage>_<tag>``."""
     venue = venues()[venue_key]
     papers = papers[papers.venue_key == venue_key]
     for key in model_keys:
@@ -225,12 +171,6 @@ def run(client, venue_key: str, model_keys: list[str], papers: pd.DataFrame, tag
                 venue_key=venue.key, venue_name=venue.name, scale=list(venue.scores),
                 accept_threshold=venue.accept_threshold, tag=tag), indent=1) + "\n")
             papers.to_json(writer.folder / "manifest.jsonl", orient="records", lines=True)
-        bank = writers["fixed_evidence"].folder / "dossier_items.jsonl"
-        if "F_itemized" in calls:
-            with bank.open("w") as out:
-                for pid in papers.paper_id:
-                    out.write(json.dumps(dict(paper_id=pid, items=load_dossier(venue_key, pid)[
-                        "items"]), ensure_ascii=False) + "\n")
         jobs = [(paper, run_idx) for _, paper in papers.iterrows() for run_idx in range(runs)]
         errors, started = [], time.perf_counter()
         print(f"{key}: {len(jobs)} paper-runs over {len(papers)} papers, calls {list(calls)}, "

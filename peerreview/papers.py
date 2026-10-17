@@ -1,4 +1,4 @@
-"""Study inputs: the paper list, the paper text a model sees, and the human-review dossiers."""
+"""Inputs: the paper list, the paper text a model reads, and the human-review dossiers."""
 from __future__ import annotations
 
 import json
@@ -33,8 +33,7 @@ def mask_paper(raw: str, title: str) -> str:
 
 
 def pdf_to_text(pdf_path) -> str:
-    """Plain text of a PDF, page by page. (The study used OCR Markdown; this is the dependency-free
-    route for new venues. Save the result where ``paper_text_path`` points.)"""
+    """Plain text of a PDF, page by page; save the result where the manifest's ``paper_text_path`` points."""
     import pymupdf
     with pymupdf.open(pdf_path) as document:
         return "\n\n".join(page.get_text() for page in document)
@@ -45,13 +44,10 @@ def paper_text(paper: pd.Series) -> str:
 
 
 def load_dossier(venue: str, paper_id: str) -> dict:
-    """Human reviews of one paper with ratings removed: ``holistic_text`` (the evidence packet
-    of the shared-evidence setting) and ``items`` (the separate points of the shared rubric)."""
+    """Human reviews of one paper (``data/dossiers/<venue>/``): ``holistic_text``, the reviews with ratings removed,
+    and the reviewer labels."""
     path = DATA / "dossiers" / venue / "study" / f"{paper_id}.json"
     if not path.exists():
         path = DATA / "dossiers" / venue / f"{paper_id}.json"
     return json.loads(path.read_text())
 
-
-def abstract_of(dossier: dict) -> str:
-    return dossier["holistic_text"].split("## Abstract\n", 1)[1].split("\n\n## ", 1)[0]

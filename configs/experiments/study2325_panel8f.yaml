@@ -1,11 +1,8 @@
-# Coverage on all 700 papers of the 2023-25 venues (2026-10-01) with the eight-family panel and the rebuilt
-# content pipeline (extractor gpt-5.6-luna, matcher gemini-3.5-flash-lite), as on ICLR 2021, ICLR 2022 and
-# NeurIPS 2022. The previous draft's extraction (332 papers, data/processed/content/) stays as it was.
-# Round 1 = call A, run 0, tag panel8f (the four shared models were rerun under panel8f on all 700 papers).
+# The eight-family panel's first reviews on ICLR 2025, NeurIPS 2023, and ICML 2025 (tag panel8f).
+# Used by experiments/judge.py and experiments/human_coverage.py with PEERREVIEW_EXPERIMENT=study2325_panel8f;
+# outputs go to results/study2325_panel8f/content/.
 name: study2325_panel8f
 models: [gpt-5.6-terra, gemini-3.1-pro, claude-sonnet-5, deepseek-v4-flash-0731, glm-5.2,
          qwen3.8-2.4t-a95b, grok-4.7, kimi-k3]
 venues: [iclr2025, neurips2023, icml2025]
-scores: results/study2325_panel8f/scores.csv
 manifest: data/manifests/study_manifest.json
-settings: [own]

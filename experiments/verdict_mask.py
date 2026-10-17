@@ -1,4 +1,4 @@
-"""Masking shared by the score-text preview (SC-auto) and E14c: numeric score phrases and verdict sentences."""
+"""Masking of reviews for the discussion with hidden verdicts: score phrases and sentences that state a verdict."""
 from __future__ import annotations
 
 import re
@@ -16,7 +16,6 @@ SENTENCE = re.compile(r"(?<=[.!?])\s+|\n+")
 def verdict_masked(text: str) -> str:
     kept = [s for s in SENTENCE.split(text) if s.strip() and not VERDICT.search(s)]
     return " ".join(kept)
-
 
 
 def masked(text: str) -> str:

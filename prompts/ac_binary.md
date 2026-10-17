@@ -1,13 +1,10 @@
 ---
 id: ac_binary
 version: v1.0.0
-block: [llm_as_ac]
-purpose: >
-  Binary area-chair decision from a frozen paper and one anonymous evidence packet.
-design_notes: >
-  The prompt contains no author identity, forum identifier, source-model identity,
-  meta-review, recorded outcome, or post-decision note. Only paper OCR may be shortened,
-  and only when the exact model context requires it.
+purpose: Area chair. The model reads a paper and a set of reviews (the human reviews or the panel's, anonymized)
+  and writes a meta-review ending in an accept or reject decision.
+notes: The prompt shows no author identity, forum id, model identity, meta-review, or outcome. Only the paper text
+  is shortened, and only when a model's context window requires it.
 ---
 
 Act as an area chair for {venue_name}. Make an independent binary decision using only

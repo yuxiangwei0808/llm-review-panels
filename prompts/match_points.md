@@ -1,24 +1,9 @@
 ---
 id: match_points
 version: v1.1.0
-block: [content]
-purpose: >
-  Content analysis, matching step (rebuild). Given the distinct points raised by a paper's human
-  reviewers and one model-written review, label for every human point whether the review
-  recognizes it and, if so, whether it agrees. Behind the omission curve (Figure 1b): a human
-  weakness "is missed" by a set of reviews when none of them recognizes it.
-design_notes: >
-  The original annotation code was lost; this template is rebuilt to reproduce the frozen label
-  scheme in data/processed/content/coverage_labels.csv (recognition: specific / partial /
-  absent; stance: endorses / disputes / mixed / unclear, or not_applicable when absent) and is
-  validated against those labels (scripts/validate_matcher.py) before being applied to new
-  papers. Flat "ID: recognition, stance" output lines keep parsing trivial.
-changelog: >
-  v1.1.0 (2026-09-28): stricter "partial" and explicit base rate. v1.0.0 over-recognized against
-  the frozen labels (recognized 56-66% of points vs 43%; kappa 0.51-0.66), mostly by labeling
-  related-but-different concerns as partial or specific.
-
-  v1.0.0 (2026-09-28): first rebuilt version.
+purpose: Coverage judge. Given a paper's human-raised points and one review, labels each point as raised specifically,
+  partially, or not at all (absent), and the review's stance toward it.
+notes: 'Output: one "ID: recognition, stance" line per point.'
 ---
 
 You are annotating peer reviews of a machine-learning paper for a content analysis.
