@@ -10,7 +10,6 @@ dependencies = [
     "scikit-learn>=1.5",
     "pyyaml>=6",
     "requests>=2.32",
-    "pymupdf>=1.24",
 ]
 
 [build-system]

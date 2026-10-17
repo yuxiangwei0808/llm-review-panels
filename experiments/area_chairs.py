@@ -9,9 +9,10 @@ output limit gets twice the limit. The venue is chosen with PANEL_CORPUS, as in 
 reads the human reviews from the OpenReview forum notes (experiments/forums.py), the other venues from the dossiers.
 
 Usage:
-  PANEL_CORPUS=iclr2021 uv run python experiments/area_chairs.py run --max-usd 180 [--pilot 3]
+  PANEL_CORPUS=iclr2021 uv run python experiments/area_chairs.py run --max-usd 180
   uv run python experiments/area_chairs.py run --repeat 2 --max-usd 250     # ICLR 2022: a second independent run
-Writes: results/<corpus>/area_chair/records.jsonl (repeat k: records_run<k>.jsonl)
+Writes: results/<folder>/area_chair/records.jsonl (ICLR 2022 repeat run: records_run2.jsonl), where <folder> is
+iclr2021_prechatgpt, iclr2022_prechatgpt, neurips2022_prechatgpt, or study2325.
 """
 from __future__ import annotations
 
@@ -85,8 +86,6 @@ def llm_packet(venue_key: str, paper_id: str, reviews: dict[str, dict]) -> str:
 
 def decided() -> pd.DataFrame:
     man = pd.DataFrame(json.loads(discussion.MANIFEST.read_text())["papers"])
-    if "venue_key" not in man:
-        man["venue_key"] = discussion.CORPUS
     return man[man.outcome.isin(["accept", "reject"])].sort_values("paper_id").reset_index(drop=True)
 
 
@@ -94,19 +93,17 @@ def run(args):
     if args.repeat > 1:
         assert discussion.CORPUS == "iclr2022", "repeat runs are on ICLR 2022"
     papers = decided()
-    if args.pilot:
-        papers = papers.sample(args.pilot, random_state=SEED).sort_values("paper_id")
     OUT.mkdir(parents=True, exist_ok=True)
     records = OUT / ("records.jsonl" if args.repeat == 1 else f"records_run{args.repeat}.jsonl")
     done = set()
     if records.exists():
         done = {(r["paper_id"], r["arm"], r["ac_model_id"]) for r in map(json.loads, records.open()) if r["parse_ok"]}
-    round1 = discussion.round1(set(papers.paper_id))
+    first = discussion.first_reviews(set(papers.paper_id))
     packet = {}
     for p in papers.itertuples():
         if "H0" in args.arms:
             packet[(p.paper_id, "H0")] = human_packet(p.venue_key, p.paper_id)
-        revs = {m: round1[(p.paper_id, m)] for m in discussion.PANEL if (p.paper_id, m) in round1}
+        revs = {m: first[(p.paper_id, m)] for m in discussion.PANEL if (p.paper_id, m) in first}
         if "P0" in args.arms and len(revs) == len(discussion.PANEL):
             packet[(p.paper_id, "P0")] = llm_packet(p.venue_key, p.paper_id, revs)
     by_id = papers.set_index("paper_id")
@@ -169,7 +166,6 @@ def main():
     r.add_argument("--arms", nargs="+", default=ARMS, choices=ARMS)
     r.add_argument("--chairs", nargs="+", default=CHAIRS, choices=CHAIRS)
     r.add_argument("--repeat", type=int, default=1, choices=[1, 2], help="ICLR 2022: independent repeat run")
-    r.add_argument("--pilot", type=int, default=0)
     r.add_argument("--workers", type=int, default=24)
     r.add_argument("--max-usd", type=float, required=True)
     r.add_argument("--attempt-offset", type=int, default=0,

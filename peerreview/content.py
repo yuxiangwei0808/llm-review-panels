@@ -14,8 +14,6 @@ from .config import Model
 TEMPLATE = "match_points"
 MAX_OUTPUT_TOKENS = 4096
 TEMPERATURE = 0.0
-RECOGNITION = ("specific", "partial", "absent")
-STANCE = ("endorses", "disputes", "mixed", "unclear", "not_applicable")
 LINE = re.compile(r"^\W*([A-Za-z]\d{3}|[A-Za-z0-9_.-]+?)\W*:\W*(specific|partial|absent)\W+"
                   r"(endorses|disputes|mixed|unclear|not_applicable)\b", re.IGNORECASE | re.MULTILINE)
 
@@ -189,12 +187,13 @@ def parse_points(raw: str) -> tuple[list[dict], str | None]:
     return out, None
 
 
-def extract_points(client, annotator: Model, dossier: dict, *, run_key: int = 0,
-                   attempts: int = 3) -> dict:
-    """Extract a paper's human points. A response that does not parse is sampled again."""
+def extract_points(client, annotator: Model, dossier: dict, *, run_key: int = 0, attempts: int = 3,
+                   attempt_offset: int = 0) -> dict:
+    """Extract a paper's human points. A response that does not parse is sampled again; ``attempt_offset`` continues
+    the numbering after earlier failed attempts, so a rerun draws new samples instead of the cached failures."""
     prompt = extract_prompt(dossier)
     record = {}
-    for attempt in range(attempts):
+    for attempt in range(attempt_offset, attempt_offset + attempts):
         kwargs = dict(run_idx=run_key, temperature=TEMPERATURE if annotator.accepts_temperature
                       else None, max_tokens=EXTRACT_MAX_OUTPUT_TOKENS,
                       extra={**annotator.request, "response_format": {"type": "json_object"}})
@@ -214,39 +213,12 @@ def extract_points(client, annotator: Model, dossier: dict, *, run_key: int = 0,
 
 def omission_curve(recognizing: list[int], n_reviews: int) -> list[float]:
     """Share of points missed by n pooled reviews, n = 1..n_reviews, averaged exactly over all
-    size-n subsets of the reviews (analysis/content/omissions.py, Figure 1b). ``recognizing`` has,
-    per point, how many of the ``n_reviews`` reviews recognize it."""
+    size-n subsets of the reviews. ``recognizing`` has, per point, how many of the ``n_reviews`` reviews raise it."""
     from math import comb
     curve = []
     for n in range(1, n_reviews + 1):
         denominator = comb(n_reviews, n)
         missed = [comb(n_reviews - k, n) / denominator if n_reviews - k >= n else 0.0
                   for k in recognizing]
-        curve.append(sum(missed) / len(missed) if missed else float("nan"))
-    return curve
-
-
-def human_omission_curve(points_by_paper: dict[str, list[dict]], reviews_by_paper: dict[str, int],
-                         max_pool: int = 3) -> list[float]:
-    """Share of human-raised weaknesses missed by n pooled HUMAN reviews, n = 1..max_pool, exact over
-    all size-n subsets of each paper's human reviews (the human counterpart of ``omission_curve``,
-    as the human committees in Figure 1a are the counterpart of the LLM committees). A point raised
-    by k of a paper's R reviewers is missed by a size-n subset with probability C(R-k, n) / C(R, n).
-    Papers with fewer than max_pool + 1 reviews are left out so that every pooled subset leaves at
-    least one reviewer out."""
-    from math import comb
-    pairs = []
-    for pid, points in points_by_paper.items():
-        n_reviews = reviews_by_paper.get(pid, 0)
-        if n_reviews < max_pool + 1:
-            continue
-        for p in points:
-            if p["polarity"] != "weakness":
-                continue
-            raised_by = len({s["review"] for s in p.get("sources", []) if s.get("review")}) or 1
-            pairs.append((min(raised_by, n_reviews), n_reviews))
-    curve = []
-    for n in range(1, max_pool + 1):
-        missed = [comb(r - k, n) / comb(r, n) if r - k >= n else 0.0 for k, r in pairs]
         curve.append(sum(missed) / len(missed) if missed else float("nan"))
     return curve

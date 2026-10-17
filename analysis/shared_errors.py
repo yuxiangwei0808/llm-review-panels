@@ -35,7 +35,7 @@ def first_review_labels(venue):
 
 
 def human_curve(path):
-    """Human committees' miss rate against the same weaknesses, k = 1..3 of the paper's reviewers (precomputed with the
+    """Human committees' miss rate against the same weaknesses, k = 1..4 of the paper's reviewers (precomputed with the
     same judge on the human reviews, experiments/human_coverage.py)."""
     h = pd.read_csv(path).sort_values("reviews")
     return [[int(r.reviews), float(r.missed_pct), float(r.ci_low), float(r.ci_high)] for r in h.itertuples()]

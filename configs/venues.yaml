@@ -5,7 +5,6 @@
 # scores        the ratings a reviewer may give, ascending; normalization is (s - min) / (max - min)
 # accept_threshold  lowest rating on the accepting side of the official form
 # scale_labels  official review-form wording, one per allowed rating
-# openreview    where to harvest the venue, and which review-form fields hold what
 iclr2025:
   name: ICLR 2025
   prompt_name: ICLR 2025 (International Conference on Learning Representations)
@@ -19,15 +18,6 @@ iclr2025:
     5: marginally below the acceptance threshold
     3: reject, not good enough
     1: strong reject
-  openreview:
-    venue_id: ICLR.cc/2025/Conference
-    api_version: 2
-    submission_invitations: [ICLR.cc/2025/Conference/-/Submission]
-    rating_field: rating
-    confidence_field: confidence
-    summary_field: summary
-    strengths_field: strengths
-    weaknesses_field: weaknesses
 neurips2023:
   name: NeurIPS 2023
   prompt_name: NeurIPS 2023
@@ -45,15 +35,6 @@ neurips2023:
     3: reject
     2: strong reject
     1: very strong reject
-  openreview:
-    venue_id: NeurIPS.cc/2023/Conference
-    api_version: 2
-    submission_invitations: [NeurIPS.cc/2023/Conference/-/Submission]
-    rating_field: rating
-    confidence_field: confidence
-    summary_field: summary
-    strengths_field: strengths
-    weaknesses_field: weaknesses
 icml2025:
   name: ICML 2025
   prompt_name: ICML 2025
@@ -66,16 +47,6 @@ icml2025:
     3: weak accept
     2: weak reject
     1: reject
-  openreview:
-    venue_id: ICML.cc/2025/Conference
-    api_version: 2
-    submission_invitations: [ICML.cc/2025/Conference/-/Submission]
-    rating_field: overall_recommendation
-    confidence_field: null
-    # ICML 2025 has one combined field; strengths and weaknesses are separated when dossiers are built.
-    summary_field: summary
-    strengths_field: null
-    weaknesses_field: null
 
 # ICLR 2021: reviews written October-November 2020, before ChatGPT. One free-text review field. API v1.
 iclr2021:
@@ -95,17 +66,6 @@ iclr2021:
     3: Clear rejection
     2: Strong rejection
     1: Trivial or wrong
-  openreview:
-    venue_id: ICLR.cc/2021/Conference
-    api_version: 1
-    submission_invitations: [ICLR.cc/2021/Conference/-/Blind_Submission,
-                             ICLR.cc/2021/Conference/-/Withdrawn_Submission]
-    rating_field: rating
-    confidence_field: confidence
-    summary_field: null
-    review_field: review
-    strengths_field: null
-    weaknesses_field: null
 
 # ICLR 2022: reviews written October-November 2021, before ChatGPT. Same six-point scale and wording as ICLR 2025;
 # the form had one free-text `main_review` field instead of strengths and weaknesses. API v1.
@@ -122,17 +82,6 @@ iclr2022:
     5: marginally below the acceptance threshold
     3: reject, not good enough
     1: strong reject
-  openreview:
-    venue_id: ICLR.cc/2022/Conference
-    api_version: 1
-    submission_invitations: [ICLR.cc/2022/Conference/-/Blind_Submission,
-                             ICLR.cc/2022/Conference/-/Withdrawn_Submission]
-    rating_field: recommendation
-    confidence_field: confidence
-    summary_field: summary_of_the_paper
-    review_field: main_review
-    strengths_field: null
-    weaknesses_field: null
 
 # NeurIPS 2022: reviews written July-August 2022, before ChatGPT. API v1. Rejected papers are public only
 # when their authors opted in; withdrawn papers are not public. Same ten-point form as NeurIPS 2023.
@@ -153,13 +102,3 @@ neurips2022:
     3: reject
     2: strong reject
     1: very strong reject
-  openreview:
-    venue_id: NeurIPS.cc/2022/Conference
-    api_version: 1
-    submission_invitations: [NeurIPS.cc/2022/Conference/-/Blind_Submission]
-    rating_field: rating
-    confidence_field: confidence
-    summary_field: summary
-    review_field: strengths_and_weaknesses
-    strengths_field: null
-    weaknesses_field: null

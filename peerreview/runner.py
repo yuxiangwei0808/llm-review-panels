@@ -164,8 +164,8 @@ def run(client, venue_key: str, model_keys: list[str], papers: pd.DataFrame, tag
     papers = papers[papers.venue_key == venue_key]
     for key in model_keys:
         model = models()[key]
-        writers = {stage: RunWriter(records.run_dir(key, venue_key, stage, root, tag), stage)
-                   for stage in ("paper_review", "fixed_evidence")}
+        writers = {STAGE[call]: RunWriter(records.run_dir(key, venue_key, STAGE[call], root, tag), STAGE[call])
+                   for call in calls}
         for writer in writers.values():
             (writer.folder / "run_meta.json").write_text(json.dumps(dict(
                 venue_key=venue.key, venue_name=venue.name, scale=list(venue.scores),
@@ -177,7 +177,7 @@ def run(client, venue_key: str, model_keys: list[str], papers: pd.DataFrame, tag
               f"{workers} workers", flush=True)
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {pool.submit(run_paper, client, model, venue, paper, run_idx, calls,
-                                   writers["paper_review"], writers["fixed_evidence"]):
+                                   writers.get("paper_review"), writers.get("fixed_evidence")):
                        (paper.paper_id, run_idx) for paper, run_idx in jobs}
             for done, future in enumerate(as_completed(futures), start=1):
                 paper_id, run_idx = futures[future]
@@ -192,7 +192,7 @@ def run(client, venue_key: str, model_keys: list[str], papers: pd.DataFrame, tag
                     print(f"  {key}: {done}/{len(jobs)} paper-runs, {elapsed / 60:.1f} min, "
                           f"${client.spent:.2f} spent, {len(errors)} errors", flush=True)
         if errors:
-            log = writers["paper_review"].folder / "errors.jsonl"
+            log = next(iter(writers.values())).folder / "errors.jsonl"
             with log.open("a") as out:
                 for error in errors:
                     out.write(json.dumps(dict(error, model=key, venue=venue.key,

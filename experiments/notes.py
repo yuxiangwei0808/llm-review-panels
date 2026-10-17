@@ -13,7 +13,8 @@ writes design.json if neither exists. The venue is chosen with PANEL_CORPUS, as 
 Usage:
   PANEL_CORPUS=iclr2021 uv run python experiments/notes.py run --max-usd 300
   PANEL_CORPUS=iclr2021 uv run python experiments/notes.py adoption --max-usd 20   # which notes the reviews take up
-Writes: results/<corpus>/injection/records.jsonl and adoption_labels.csv (2023-25: results/study2325_panel8f/injection/).
+Writes: results/<folder>/injection/records.jsonl and adoption_labels.csv, where <folder> is iclr2021_prechatgpt,
+iclr2022_prechatgpt, neurips2022_prechatgpt, or study2325_panel8f (the 2023-25 venues).
 """
 from __future__ import annotations
 
@@ -47,7 +48,7 @@ CACHE = ROOT / "cache" / "responses" / "injection"
 ARMS = ["missed", "mentioned", "false"]
 FRESH = {"fresh_missed": "missed", "fresh_false": "false"}   # notes before a fresh review, and the notes they use
 N_NOTES = 3
-FRAME_SEED = f"{SEED}:e8"   # seeds the sampling and order of the notes (the string of the runs behind the paper)
+NOTES_SEED = f"{SEED}:notes"   # seeds the choice of notes and the order they are shown in
 
 
 def _weaknesses() -> dict[str, list[dict]]:
@@ -74,14 +75,14 @@ def design() -> dict:
                       if manifest.get(pid, {}).get("outcome") in ("accept", "reject")
                       and sum(w["id"] not in mentioned.get(pid, set()) for w in ws) >= N_NOTES
                       and sum(w["id"] in mentioned.get(pid, set()) for w in ws) >= N_NOTES)
-    rng = random.Random(FRAME_SEED)
+    rng = random.Random(NOTES_SEED)
     partners = eligible[:]
     while any(a == b for a, b in zip(eligible, partners)):
         rng.shuffle(partners)
     out = {"eligible": len(eligible), "papers": {}}
     for pid, partner in zip(eligible, partners):
         hit = mentioned.get(pid, set())
-        r = random.Random(f"{FRAME_SEED}:{pid}")
+        r = random.Random(f"{NOTES_SEED}:{pid}")
         missed = r.sample([w for w in weak[pid] if w["id"] not in hit], N_NOTES)
         known = r.sample([w for w in weak[pid] if w["id"] in hit], N_NOTES)
         false = r.sample(weak[partner], N_NOTES)
@@ -97,18 +98,16 @@ def design() -> dict:
 
 def notes_block(notes: list[dict], pid: str, arm: str) -> str:
     order = list(notes)
-    random.Random(f"{FRAME_SEED}:{pid}:{arm}:order").shuffle(order)
+    random.Random(f"{NOTES_SEED}:{pid}:{arm}:order").shuffle(order)
     return "\n".join(f"- {n['text']}" for n in order)
 
 
 def run(args):
     design_ = design()
     ids = sorted(design_["papers"])
-    if args.pilot:
-        ids = ids[:args.pilot]
     OUT.mkdir(parents=True, exist_ok=True)
     manifest = pd.DataFrame(json.loads(discussion.MANIFEST.read_text())["papers"]).set_index("paper_id")
-    reviews = discussion.round1(set(ids))
+    reviews = discussion.first_reviews(set(ids))
     model_of = models()
     client = OpenRouterClient(CACHE, args.max_usd)
     record_path = OUT / "records.jsonl"
@@ -128,7 +127,7 @@ def run(args):
     def work(job):
         pid, key, arm = job
         model, paper = model_of[key], manifest.loc[pid]
-        venue = venues()[paper["venue_key"]] if "venue_key" in paper else venues()["iclr2022"]
+        venue = venues()[paper["venue_key"]]
         own = reviews[(pid, key)]
         source_arm = FRESH.get(arm, arm)
         notes = notes_block(design_["papers"][pid][source_arm], pid, source_arm)
@@ -189,14 +188,18 @@ def run(args):
 
 
 def adoption(args):
-    """How many of its three notes each revised review raises, and its first review as the baseline: the coverage
-    judge (same model and prompt as for the human-raised weaknesses) with the notes as the points."""
+    """How many of its three notes each revised review raises, with its first review as the baseline: the coverage
+    judge (same model and prompt as for the human-raised weaknesses) with the notes as the points. Appends to
+    adoption_labels.csv; reviews whose labels did not parse before are sampled afresh."""
     design_ = design()
     annotator = models()[args.annotator]
     client = OpenRouterClient(CACHE.parent / f"content_match_notes_{args.annotator}", args.max_usd)
+    path = OUT / "adoption_labels.csv"
+    done = set(map(tuple, pd.read_csv(path)[["paper_id", "model", "arm", "review"]].values)) if path.exists() else set()
+    offset = 3 if path.exists() else 0      # a review missing after an earlier run failed its three attempts
     recs = {(r["paper_id"], r["model_id"], r["arm"]): r for r in map(json.loads, (OUT / "records.jsonl").open())
-            if r["parse_ok"] and r["items"]}
-    reviews = discussion.round1(set(design_["papers"]))
+            if r["parse_ok"] and r.get("items") and r["arm"] in ARMS}
+    reviews = discussion.first_reviews(set(design_["papers"]))
     jobs = []
     for (pid, m, arm), r in recs.items():
         points = [{"id": f"N{k}", "polarity": "weakness", "text": n["text"]}
@@ -205,22 +208,25 @@ def adoption(args):
         own = reviews.get((pid, m))
         if own:
             jobs.append((pid, m, arm, "round1", points, own["items"], (own.get("extra") or {}).get("summary", "")))
+    jobs = [j for j in jobs if j[:4] not in done]
+    print(f"{len(done)} reviews labelled, {len(jobs)} to do", flush=True)
 
     def work(job):
         pid, m, arm, which, points, items, summary = job
         summary = " ".join(map(str, summary)) if isinstance(summary, list) else str(summary or "")
-        rec = content.match_review(client, annotator, points, items, summary=summary, run_key=0)
+        rec = content.match_review(client, annotator, points, items, summary=summary, run_key=0, attempt_offset=offset)
         hits = sum(v[0] in ("specific", "partial") for v in rec["labels"].values()) if rec["parse_ok"] else None
         return dict(paper_id=pid, model=m, arm=arm, review=which, mentioned=hits, n_notes=len(points))
 
     with ThreadPoolExecutor(args.workers) as pool:
         rows = [x for x in pool.map(work, jobs) if x["mentioned"] is not None]
-    table = pd.DataFrame(rows)
-    table.to_csv(OUT / "adoption_labels.csv", index=False)
+    pd.DataFrame(rows, columns=["paper_id", "model", "arm", "review", "mentioned", "n_notes"]).to_csv(
+        path, mode="a", header=not path.exists(), index=False)
+    table = pd.read_csv(path)
     table["share"] = table.mentioned / table.n_notes
     out = table.pivot_table(index="arm", columns="review", values="share", aggfunc="mean")
-    out["adopted (revised - round 1)"] = out.revised - out.round1
-    print(f"{len(table)} labeled reviews, ${client.spent:.2f}")
+    out["adopted (revised - first review)"] = out.revised - out.round1
+    print(f"{len(table)} labelled reviews, ${client.spent:.2f}")
     print((100 * out).round(1).to_string())
 
 
@@ -228,7 +234,6 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(required=True)
     r = sub.add_parser("run")
-    r.add_argument("--pilot", type=int, default=0)
     r.add_argument("--arms", nargs="+", default=ARMS + list(FRESH), choices=ARMS + list(FRESH))
     r.add_argument("--workers", type=int, default=24)
     r.add_argument("--max-usd", type=float, required=True)

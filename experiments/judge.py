@@ -31,14 +31,11 @@ from peerreview.config import ROOT, models
 from peerreview.experiment import current
 from peerreview.papers import load_dossier
 
-EXPERIMENT = current()
-OUT = ROOT / "results" / EXPERIMENT.name / "content"
+EXPERIMENT = OUT = None     # set in main() from PEERREVIEW_EXPERIMENT
 
 
 def papers() -> pd.DataFrame:
     table = pd.DataFrame(json.loads(EXPERIMENT.manifest.read_text())["papers"])
-    if "venue_key" not in table:
-        table["venue_key"] = EXPERIMENT.venues[0]
     return table[table.venue_key.isin(EXPERIMENT.venues)]
 
 
@@ -65,10 +62,16 @@ def extract(args):
     print(f"{len(done)} papers extracted, {len(todo)} to do", flush=True)
     OUT.mkdir(parents=True, exist_ok=True)
     failures = []
+    failed: dict[str, int] = {}     # earlier failed attempts per paper: a rerun draws fresh samples
+    if (OUT / "extract_records.jsonl").exists():
+        for line in (OUT / "extract_records.jsonl").open():
+            r = json.loads(line)
+            if not r["parse_ok"]:
+                failed[r["paper_id"]] = max(failed.get(r["paper_id"], 0), r.get("attempt", 1))
 
     def work(paper):
-        return paper.paper_id, content.extract_points(client, annotator,
-                                                      load_dossier(paper.venue_key, paper.paper_id))
+        return paper.paper_id, content.extract_points(client, annotator, load_dossier(paper.venue_key, paper.paper_id),
+                                                      attempt_offset=failed.get(paper.paper_id, 0))
 
     with ThreadPoolExecutor(args.workers) as pool, (OUT / "reference_items.jsonl").open("a") as out, \
             (OUT / "extract_records.jsonl").open("a") as log:
@@ -168,6 +171,9 @@ def main():
     m.add_argument("--max-usd", type=float, default=40)
     m.set_defaults(run=match)
     args = parser.parse_args()
+    global EXPERIMENT, OUT
+    EXPERIMENT = current()
+    OUT = ROOT / "results" / EXPERIMENT.name / "content"
     args.run(args)
 
 

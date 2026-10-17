@@ -13,6 +13,8 @@ Intervals: 95%, resampling papers.
 Usage:  uv run python analysis/review_cycle.py
 Writes: outputs/review_cycle.json
 """
+import collections
+
 import numpy as np
 import pandas as pd
 
@@ -130,13 +132,19 @@ def discussion(by_venue):
 
 
 def area_chairs():
-    """Unanimous errors of the nine LLM chairs (decided papers on which every chair decided under both readings)."""
+    """Unanimous errors of the nine LLM chairs: decided papers on which every chair decided both with the human reviews
+    (H0) and with the panel's reviews (P0); on ICLR 2022, the papers whose eight reviewers all revised after the author
+    responses, the papers of the ICLR 2022 area-chair comparison."""
     out, data, rng = {}, {}, np.random.default_rng(20261011)
     for name, venue, d, _ in VENUES:
         recs = [r for r in jsonl(RESULTS / d / "area_chair" / "records.jsonl") if r.get("parse_ok") and r.get("truth") in ("accept", "reject")]
-        latest = {(r["paper_id"], r["arm"], r["ac_model_id"]): r for r in recs}
-        arms, chairs = sorted({k[1] for k in latest}), sorted({k[2] for k in latest})
+        latest = {(r["paper_id"], r["arm"], r["ac_model_id"]): r for r in recs if r["arm"] in ("H0", "P0")}
+        arms, chairs = ["H0", "P0"], sorted({k[2] for k in latest})
         papers = sorted({k[0] for k in latest})
+        if venue == "iclr2022":
+            revised = collections.Counter(r["paper_id"] for r in {(r["paper_id"], r["model_id"]): r for r in jsonl(
+                RESULTS / d / "discussion" / "records_rebuttal.jsonl") if r["parse_ok"] and r["arm"] == "rebuttal"}.values())
+            papers = [p for p in papers if revised[p] == len(PANEL)]
         keep = [p for p in papers if all((p, a, c) in latest for a in arms for c in chairs)
                 and latest[(p, "H0", chairs[0])].get("venue_key", venue) == venue]
         wrong = lambda a: np.array([all(latest[(p, a, c)]["decision"] != latest[(p, a, c)]["truth"] for c in chairs) for p in keep], float)

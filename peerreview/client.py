@@ -1,4 +1,7 @@
-"""Model calls through OpenRouter, with an on-disk response cache and a hard cost ceiling."""
+"""Model calls through OpenRouter, with an on-disk response cache and a cost ceiling.
+
+The ceiling is checked before each request, so requests already in flight can add to the spending after it is reached.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -42,12 +45,14 @@ def _post_with_deadline(headers: dict, body: dict) -> _Response:
 
 
 def api_key() -> str:
+    """OPENROUTER_API_KEY from the environment, or from a .env file in the repository root."""
     if os.environ.get("OPENROUTER_API_KEY"):
         return os.environ["OPENROUTER_API_KEY"]
-    for line in (ROOT / ".env").read_text().splitlines():
+    env = ROOT / ".env"
+    for line in env.read_text().splitlines() if env.exists() else []:
         if line.startswith("OPENROUTER_API_KEY="):
             return line.split("=", 1)[1].strip()
-    raise RuntimeError("OPENROUTER_API_KEY is not set (environment or .env)")
+    raise SystemExit("OPENROUTER_API_KEY is not set (environment or .env in the repository root)")
 
 
 class CostCeilingReached(RuntimeError):

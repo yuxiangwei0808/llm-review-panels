@@ -11,10 +11,13 @@ one sample per model, paper, and condition (field ``arm``):
   rebuttal                plus the authors' real responses before the decision
   llm_rebuttal            plus a reply to its own review, written by GPT-5.1 acting as the authors (ICLR 2022)
 
-second_look and discussion run on every paper with first reviews; the restricted discussions on the papers where all
-eight reviewers have a first review and a revision in both; the rebuttal conditions on papers with an author response.
-The venue is chosen with PANEL_CORPUS (iclr2022 by default, iclr2021, neurips2022, or 2023-25). Author responses come
-from OpenReview forum files in data/raw/openreview_corpus/<venue>/forums.jsonl (not distributed).
+second_look and discussion run on every paper with first reviews; the restricted discussions afterwards, on the papers
+where all eight reviewers have a first review and a revision in both; the rebuttal conditions on papers with an author
+response. The venue is chosen with PANEL_CORPUS: iclr2021, iclr2022 (the default), neurips2022, or 2023-25. Author
+responses come from the OpenReview forum files data/raw/openreview_corpus/<venue>/forums.jsonl (API v1 for 2021-22, v2
+for 2023-25; not distributed). The coverage step labels revisions against the points in
+results/<venue>_prechatgpt/content/ for 2021-22 and, for 2023-25, data/processed/content/ (the 332 papers whose
+weaknesses were extracted first).
 
 Usage:
   PANEL_CORPUS=iclr2021 uv run python experiments/discussion.py run --arms second_look discussion --max-usd 300
@@ -22,7 +25,9 @@ Usage:
   uv run python experiments/discussion.py run --repeat 2 --max-usd 300     # ICLR 2022: a second independent run
   uv run python experiments/discussion.py reparse                          # re-read failed responses, no model calls
   uv run python experiments/discussion.py coverage --max-usd 30            # coverage judge on the revisions
-Writes: results/<corpus>/discussion/records.jsonl (rebuttal conditions: records_rebuttal.jsonl), coverage_labels.csv.
+Writes: results/<folder>/discussion/records.jsonl (rebuttal conditions: records_rebuttal.jsonl), coverage_labels.csv,
+where <folder> is iclr2021_prechatgpt, iclr2022_prechatgpt, neurips2022_prechatgpt, or study2325 (repeat runs:
+discussion_run2/, discussion_run3/).
 Responses are cached under cache/responses/discussion, so a rerun resumes for free.
 """
 from __future__ import annotations
@@ -45,7 +50,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from peerreview import parsing, prompts, records
 from peerreview.client import CostCeilingReached, OpenRouterClient
-from peerreview.config import MAX_OUTPUT_TOKENS, ROOT, SEED, TEMPERATURE, models, venues
+from peerreview.config import MANIFESTS, MAX_OUTPUT_TOKENS, PANEL, ROOT, SEED, TEMPERATURE, models, venues
 from peerreview.papers import load_dossier, paper_text
 from peerreview.runner import MAX_ATTEMPTS, fit_to_context
 
@@ -57,37 +62,33 @@ CORPUS = os.environ.get("PANEL_CORPUS", "iclr2022")
 if CORPUS == "2023-25":
     MANIFEST = ROOT / "data" / "manifests" / "study_manifest.json"
     OUT = ROOT / "results" / "study2325" / "discussion"
-    CONTENT = ROOT / "data" / "processed" / "content"
-    ROUND1_SOURCES = [("iclr2025", "panel8f"), ("neurips2023", "panel8f"), ("icml2025", "panel8f")]
+    CONTENT = ROOT / "data" / "processed" / "content"     # the 332 papers whose weaknesses were extracted first
+    FIRST_REVIEW_SOURCES = [("iclr2025", "panel8f"), ("neurips2023", "panel8f"), ("icml2025", "panel8f")]
 elif CORPUS in ("iclr2021", "iclr2022", "neurips2022"):
-    MANIFEST = ROOT / "data" / "manifests" / {"iclr2021": "iclr2021_prechatgpt_run.json",
-                                              "iclr2022": "iclr2022_prechatgpt.json",
-                                              "neurips2022": "neurips2022_prechatgpt_run.json"}[CORPUS]
+    MANIFEST = ROOT / "data" / "manifests" / MANIFESTS[CORPUS]
     OUT = ROOT / "results" / f"{CORPUS}_prechatgpt" / "discussion"
     CONTENT = ROOT / "results" / f"{CORPUS}_prechatgpt" / "content"
-    ROUND1_SOURCES = [(CORPUS, "prechatgpt")]
+    FIRST_REVIEW_SOURCES = [(CORPUS, "prechatgpt")]
 else:
     raise SystemExit("PANEL_CORPUS must be iclr2021, iclr2022, neurips2022, or 2023-25")
 CACHE = ROOT / "cache" / "responses" / "discussion"
-PANEL = ["gpt-5.6-terra", "gemini-3.1-pro", "claude-sonnet-5", "deepseek-v4-flash-0731", "glm-5.2",
-         "qwen3.8-2.4t-a95b", "grok-4.7", "kimi-k3"]
 ARMS = {"second_look": "call_a_second_look", "discussion": "call_a_discussion"}
 RESTRICTED = {"discussion_text": "call_a_discussion_text", "discussion_masked": "call_a_discussion_text",
               "discussion_independent": "call_a_discussion_independent"}
 REBUTTAL = {"rebuttal": "call_a_revision", "llm_rebuttal": "call_a_revision"}
 TEMPLATES = {**ARMS, **RESTRICTED, **REBUTTAL}
+PEER_ARMS = {"discussion", *RESTRICTED}   # the conditions that show the other reviews
 AUTHOR_MODEL = "gpt-5.1"     # writes the llm_rebuttal replies
-PEER_ORDER_SEED = f"{SEED}:e14"   # seeds the order of the other reviews (the string of the runs behind the paper)
-ROUND1_RUN = 0
-REPEAT = 1                  # set by `run --repeat`: run k starts from first-review run k-1 (ICLR 2022)
+PEER_ORDER_SEED = f"{SEED}:peer-order"   # seeds the order in which a reviewer sees the other reviews
+FIRST_REVIEW_RUN = 0
 
 
 def set_repeat(k: int) -> None:
     """Point the module at repeat run k: first reviews of run k-1, outputs in discussion_run<k>/."""
-    global REPEAT, ROUND1_RUN, OUT
+    global FIRST_REVIEW_RUN, OUT
     if k > 1:
         assert CORPUS == "iclr2022", "repeat runs are on ICLR 2022"
-        REPEAT, ROUND1_RUN, OUT = k, k - 1, OUT.parent / f"discussion_run{k}"
+        FIRST_REVIEW_RUN, OUT = k - 1, OUT.parent / f"discussion_run{k}"
 
 
 def record_file(arm: str) -> Path:
@@ -103,14 +104,14 @@ def all_records() -> list[dict]:
     return out
 
 
-def round1(papers: set[str]) -> dict[tuple[str, str], dict]:
-    """(paper, model) -> the parsed first review (call A) of run ROUND1_RUN, the last parsed attempt."""
+def first_reviews(papers: set[str]) -> dict[tuple[str, str], dict]:
+    """(paper, model) -> the parsed first review (call A) of run FIRST_REVIEW_RUN, the last parsed attempt."""
     out = {}
     for m in PANEL:
-        for venue_key, tag in ROUND1_SOURCES:
+        for venue_key, tag in FIRST_REVIEW_SOURCES:
             try:
                 for r in records.iter_records(m, venue_key, "paper_review", "A", tag=tag):
-                    if r["paper_id"] in papers and r["run_idx"] == ROUND1_RUN and r["parse_ok"] and r["items"]:
+                    if r["paper_id"] in papers and r["run_idx"] == FIRST_REVIEW_RUN and r["parse_ok"] and r["items"]:
                         out[(r["paper_id"], m)] = r
             except FileNotFoundError:
                 continue
@@ -120,7 +121,7 @@ def round1(papers: set[str]) -> dict[tuple[str, str], dict]:
 def complete_papers() -> list[str]:
     """Papers where all eight reviewers have a first review and a parsed revision in second_look and discussion."""
     done = {(r["paper_id"], r["model_id"], r["arm"]) for r in all_records() if r["parse_ok"]}
-    r1 = round1({p for p, _, _ in done})
+    r1 = first_reviews({p for p, _, _ in done})
     return sorted({p for p, _, _ in done if all((p, m) in r1 and (p, m, a) in done for m in PANEL for a in ARMS)})
 
 
@@ -216,10 +217,16 @@ def review_text(record: dict) -> str:
     return "\n".join(lines).strip()
 
 
-def peer_block(paper_id: str, model: str, reviews: dict, with_scores: bool = True, mask_verdicts: bool = False) -> str:
-    """The other reviewers' first reviews, as Reviewer 1..7 in a seeded order per paper and reviewer."""
+def peer_order(paper_id: str, model: str, reviews: dict) -> list[str]:
+    """The other reviewers, in the seeded order a reviewer sees them (Reviewer 1..7)."""
     peers = [m for m in PANEL if m != model and (paper_id, m) in reviews]
     random.Random(f"{PEER_ORDER_SEED}:{paper_id}:{model}").shuffle(peers)
+    return peers
+
+
+def peer_block(paper_id: str, model: str, reviews: dict, with_scores: bool = True, mask_verdicts: bool = False) -> str:
+    """The other reviewers' first reviews, as Reviewer 1..7 in a seeded order per paper and reviewer."""
+    peers = peer_order(paper_id, model, reviews)
     head = lambda k, m: (f"### Reviewer {k} (score: {reviews[(paper_id, m)]['emitted_score']})" if with_scores
                          else f"### Reviewer {k}")
     body = lambda m: (verdict_masked(masked(review_text(reviews[(paper_id, m)]))) if mask_verdicts
@@ -229,9 +236,9 @@ def peer_block(paper_id: str, model: str, reviews: dict, with_scores: bool = Tru
 
 def author_rebuttal(client, venue, paper: pd.Series, own: dict) -> tuple[str, dict]:
     """Reply to this reviewer's own review: an LLM acting as the authors writes it, using only the paper and the
-    authors' real responses as sources (prompt author_targeted_v2)."""
+    authors' real responses as sources (prompt author_reply)."""
     author = models()[AUTHOR_MODEL]
-    prompt = prompts.render("author_targeted_v2", paper_text=paper_text(paper), source_review=review_text(own),
+    prompt = prompts.render("author_reply", paper_text=paper_text(paper), source_review=review_text(own),
                             initial_score=str(own["emitted_score"]), real_response=real_author_response(paper.paper_id))
     kwargs = dict(run_idx=0, temperature=TEMPERATURE if author.accepts_temperature else None, max_tokens=4096)
     if author.request:
@@ -241,21 +248,32 @@ def author_rebuttal(client, venue, paper: pd.Series, own: dict) -> tuple[str, di
                               author_cost_usd=usage.get("cost_usd"), author_finish_reason=usage.get("finish_reason"))
 
 
+FIRST_ROUND_NOTES = ROOT / "data" / "manifests" / "author_response_notes.json"
+
+
 @functools.lru_cache
 def _forums_v2() -> dict:
-    out = {}
-    for venue in ("iclr2025", "neurips2023", "icml2025"):
-        path = ROOT / "data" / "raw" / "openreview_corpus" / venue / "forums.jsonl"
+    out, paths = {}, [ROOT / "data" / "raw" / "openreview_corpus" / v / "forums.jsonl"
+                      for v in ("iclr2025", "neurips2023", "icml2025")]
+    if not any(p.exists() for p in paths):
+        raise SystemExit(f"no OpenReview forum files found: {paths}")
+    for path in paths:
         if path.exists():
             for line in path.open():
                 r = json.loads(line)
-                out[r["submission"]["id"]] = (venue, r)
+                out[r["submission"]["id"]] = (path.parent.name, r)
     return out
 
 
+@functools.lru_cache
+def _first_round_notes() -> dict[str, list[str]]:
+    return json.loads(FIRST_ROUND_NOTES.read_text())["papers"] if FIRST_ROUND_NOTES.exists() else {}
+
+
 def _author_response_v2(paper_id: str) -> str:
-    """The authors' comments before the decision in an OpenReview API v2 forum (2023-25 venues), labelled like the
-    API v1 responses of experiments/forums.py."""
+    """The authors' responses in an OpenReview API v2 forum (2023-25 venues), labelled like the API v1 responses of
+    experiments/forums.py: the notes listed in author_response_notes.json where the paper has an entry (the authors'
+    first round of responses), otherwise every author note before the decision."""
     hit = _forums_v2().get(paper_id)
     if not hit:
         return ""
@@ -269,15 +287,18 @@ def _author_response_v2(paper_id: str) -> str:
     replies = forum["replies"]
     decision = [n for n in replies if "Decision" in kinds(n)]
     cutoff = int(decision[0]["cdate"]) if decision else None
+    listed = set(_first_round_notes().get(paper_id, []))
     d = load_dossier(venue, paper_id)
     labels = d["reviewer_labels"]; labels = dict(json.loads(labels) if isinstance(labels, str) else labels)
     src = d["source_reviews"]; src = json.loads(src) if isinstance(src, str) else src
     number = {s["note_id"]: ord(labels[s["reviewer_id"]]) - ord("A") + 1 for s in src if s["reviewer_id"] in labels}
     parts = []
     for n in sorted(replies, key=lambda n: int(n.get("cdate") or 0)):
-        if not any(str(x).endswith("/Authors") for x in n.get("signatures", [])) or not (kinds(n) & accept):
-            continue
-        if cutoff is not None and int(n.get("cdate") or 0) >= cutoff:
+        if listed:
+            if n["id"] not in listed:
+                continue
+        elif not any(str(x).endswith("/Authors") for x in n.get("signatures", [])) or not (kinds(n) & accept) \
+                or (cutoff is not None and int(n.get("cdate") or 0) >= cutoff):
             continue
         target = n.get("replyto")
         head = (f"### Author response to Reviewer {number[target]}" if target in number else
@@ -343,15 +364,10 @@ def failed_attempts() -> dict[tuple[str, str, str], int]:
 def run(args):
     set_repeat(args.repeat)
     manifest = pd.DataFrame(json.loads(MANIFEST.read_text())["papers"])
-    if "venue_key" not in manifest:
-        manifest["venue_key"] = CORPUS
     by_arm = {arm: papers_for(arm, manifest) for arm in args.arms}
-    if args.pilot:
-        pilot = set(random.Random(f"{SEED}:pilot").sample(sorted(manifest.paper_id), args.pilot))
-        by_arm = {arm: [p for p in ids if p in pilot] for arm, ids in by_arm.items()}
     ids = sorted(set().union(*by_arm.values()))
     rows = {p.paper_id: p for _, p in manifest.set_index("paper_id").loc[ids].reset_index().iterrows()}
-    reviews = round1(set(ids))
+    reviews = first_reviews(set(ids))
     model_of = models()
     client = OpenRouterClient(CACHE, args.max_usd)
     OUT.mkdir(parents=True, exist_ok=True)
@@ -377,7 +393,7 @@ def run(args):
         cut = (paper.paper_id, key, arm) in truncated
         for attempt in range(first, first + MAX_ATTEMPTS):
             limit = 2 * MAX_OUTPUT_TOKENS if cut else MAX_OUTPUT_TOKENS
-            kwargs = dict(run_idx=ROUND1_RUN, temperature=temperature, max_tokens=limit)
+            kwargs = dict(run_idx=FIRST_REVIEW_RUN, temperature=temperature, max_tokens=limit)
             if attempt:
                 kwargs["attempt"] = attempt
             if model.request:
@@ -390,7 +406,7 @@ def run(args):
                 paper_id=paper.paper_id, model_id=key, arm=arm, prompt_template=TEMPLATES[arm],
                 prompt_version=header["version"], prompt_sha256=prompts.sha256(prompt),
                 round1_call_id=own["call_id"], round1_score=own["emitted_score"],
-                peers=[m for m in PANEL if m != key] if arm == "discussion" else [],
+                peers=peer_order(paper.paper_id, key, reviews) if arm in PEER_ARMS else [],
                 emitted_score=parsed.score, items=parsed.items, reasoning_text=parsed.reasoning,
                 raw_response=text, parse_ok=parsed.ok, parse_error=parsed.error, extra=parsed.extra,
                 paper_text_context_trimmed=trimmed, temperature=temperature, attempt=attempt + 1, max_output_tokens=limit,
@@ -433,7 +449,7 @@ def reparse(args):
     now parses, marked reparsed_from_failed_record."""
     set_repeat(args.repeat)
     manifest = pd.DataFrame(json.loads(MANIFEST.read_text())["papers"])
-    venue_of = dict(zip(manifest.paper_id, manifest.venue_key)) if "venue_key" in manifest else {}
+    venue_of = dict(zip(manifest.paper_id, manifest.venue_key))
     recs = all_records()
     ok = {(r["paper_id"], r["model_id"], r["arm"]) for r in recs if r["parse_ok"]}
     added = 0
@@ -441,7 +457,7 @@ def reparse(args):
         key = (r["paper_id"], r["model_id"], r["arm"])
         if r["parse_ok"] or key in ok:
             continue
-        parsed = parse_round2(r["raw_response"], venues()[venue_of.get(r["paper_id"], CORPUS)].scores)
+        parsed = parse_round2(r["raw_response"], venues()[venue_of[r["paper_id"]]].scores)
         if not parsed.ok:
             continue
         new = dict(r, emitted_score=parsed.score, items=parsed.items, reasoning_text=parsed.reasoning,
@@ -464,9 +480,11 @@ def load_points() -> dict[str, list[dict]]:
 
 
 def coverage(args):
-    """Label every revised review with points against the paper's human-raised points, with the coverage judge that
-    labels the first reviews (same model and prompt). Writes coverage_labels.csv and match_records.jsonl."""
+    """Label every revised review with points against the paper's human-raised points (CONTENT), with the coverage
+    judge's model and prompt; with --arms round1, the first reviews too. Writes coverage_labels.csv and
+    match_records.jsonl. A review whose labels did not parse is sampled afresh on a rerun."""
     from peerreview import content
+    set_repeat(args.repeat)
     annotator = models()[args.annotator]
     client = OpenRouterClient(CACHE.parent / f"content_match_discussion_{args.annotator}", args.max_usd)
     points = load_points()
@@ -475,10 +493,17 @@ def coverage(args):
     if labels_path.exists():
         prior = pd.read_csv(labels_path)
         done = set(zip(prior.paper_id, prior.model, prior.arm))
+    failed: dict[tuple, int] = {}
+    if log_path.exists():
+        for line in log_path.open():
+            r = json.loads(line)
+            if not r["parse_ok"]:
+                key = (r["paper_id"], r["model"], r["arm"])
+                failed[key] = max(failed.get(key, 0), r.get("attempt", 1))
     latest = {(r["paper_id"], r["model_id"], r["arm"]): r for r in all_records()
-              if r["parse_ok"] and r["items"] and r["arm"] in args.arms and r["paper_id"] in points}
+              if r["parse_ok"] and r.get("items") and r["arm"] in args.arms and r["paper_id"] in points}
     if "round1" in args.arms:   # the first reviews themselves, labelled with the revisions
-        for (pid, m), r in round1(set(points)).items():
+        for (pid, m), r in first_reviews(set(points)).items():
             latest[(pid, m, "round1")] = r
     jobs = [(k, r) for k, r in latest.items() if k not in done]
     print(f"{len(done)} reviews labelled, {len(jobs)} to do", flush=True)
@@ -488,8 +513,8 @@ def coverage(args):
         (pid, model, arm), r = job
         summary = (r.get("extra") or {}).get("summary", "")
         summary = " ".join(map(str, summary)) if isinstance(summary, list) else str(summary or "")
-        return (pid, model, arm), r, content.match_review(client, annotator, points[pid], r["items"],
-                                                        summary=summary, run_key=0)
+        return (pid, model, arm), r, content.match_review(client, annotator, points[pid], r["items"], summary=summary,
+                                                        run_key=0, attempt_offset=failed.get((pid, model, arm), 0))
 
     header = not labels_path.exists()
     failures = 0
@@ -523,7 +548,6 @@ def main():
     r = sub.add_parser("run")
     r.add_argument("--arms", nargs="+", default=list(ARMS), choices=list(TEMPLATES))
     r.add_argument("--repeat", type=int, default=1, choices=[1, 2, 3], help="ICLR 2022: independent repeat run")
-    r.add_argument("--pilot", type=int, default=0, help="run only this many seeded pilot papers")
     r.add_argument("--workers", type=int, default=24)
     r.add_argument("--max-usd", type=float, required=True)
     r.set_defaults(run=run)
@@ -533,6 +557,7 @@ def main():
     v = sub.add_parser("coverage")
     v.add_argument("--annotator", default="gemini-3.5-flash-lite")
     v.add_argument("--arms", nargs="+", default=list(ARMS), choices=list(TEMPLATES) + ["round1"])
+    v.add_argument("--repeat", type=int, default=1, choices=[1, 2, 3])
     v.add_argument("--workers", type=int, default=24)
     v.add_argument("--max-usd", type=float, required=True)
     v.set_defaults(run=coverage)

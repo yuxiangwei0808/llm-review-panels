@@ -1,5 +1,5 @@
 ---
-id: author_targeted_v2
+id: author_reply
 version: v2.0.0
 purpose: Reply to an LLM's own review (ICLR 2022). Writes the authors' response to one LLM review, using only the
   submitted paper and the authors' real rebuttal as sources for factual claims.

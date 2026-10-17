@@ -15,6 +15,13 @@ RAW_OUTPUTS = ROOT / "results" / "raw"   # first reviews: <model>/<venue>/<stage
 SEED = 20260727                     # seed for paper sampling and review order
 MAX_OUTPUT_TOKENS = 8192
 TEMPERATURE = 1.0
+PANEL = ["gpt-5.6-terra", "gemini-3.1-pro", "claude-sonnet-5", "deepseek-v4-flash-0731", "glm-5.2",
+         "qwen3.8-2.4t-a95b", "grok-4.7", "kimi-k3"]                          # the eight-family panel
+FOUR_FAMILY = ["gpt-5.1", "gpt-5.6-luna", "gpt-5.6-terra", "gemini-3.1-pro", "gemini-3.5-flash",
+               "gemini-3.5-flash-lite", "deepseek-v4-flash-0731", "glm-5.2"]  # the four-family panel (Families)
+MANIFESTS = {"iclr2021": "iclr2021_prechatgpt_run.json", "iclr2022": "iclr2022_prechatgpt.json",
+             "neurips2022": "neurips2022_prechatgpt_run.json", "iclr2025": "study_manifest.json",
+             "neurips2023": "study_manifest.json", "icml2025": "study_manifest.json"}   # under data/manifests/
 
 
 @dataclass(frozen=True)
@@ -26,7 +33,6 @@ class Venue:
     scores: tuple[int, ...]
     accept_threshold: int
     scale_labels: dict[int, str]
-    openreview: dict = field(default_factory=dict)
 
     @property
     def rating_scale_block(self) -> str:
@@ -38,10 +44,6 @@ class Venue:
     @property
     def allowed_scores(self) -> str:
         return "{" + ", ".join(map(str, self.scores)) + "}"
-
-    def normalize(self, score: float) -> float:
-        low, high = min(self.scores), max(self.scores)
-        return (score - low) / (high - low)
 
 
 @dataclass(frozen=True)
@@ -61,8 +63,7 @@ def venues() -> dict[str, Venue]:
     return {key: Venue(key=key, name=v["name"], prompt_name=v["prompt_name"],
                        short_name=v["short_name"], scores=tuple(v["scores"]),
                        accept_threshold=v["accept_threshold"],
-                       scale_labels={int(k): label for k, label in v["scale_labels"].items()},
-                       openreview=v.get("openreview", {}))
+                       scale_labels={int(k): label for k, label in v["scale_labels"].items()})
             for key, v in raw.items()}
 
 

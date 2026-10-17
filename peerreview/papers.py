@@ -3,20 +3,11 @@ from __future__ import annotations
 
 import json
 import re
-from functools import lru_cache
 
 import pandas as pd
 
 from .config import DATA, ROOT
 from .prompts import TITLE_MASK
-
-MANIFEST = DATA / "manifests" / "study_manifest.json"
-
-
-@lru_cache
-def study_papers(manifest=MANIFEST) -> pd.DataFrame:
-    """One row per paper: ids, venue, outcome, human ratings, where the paper text lives."""
-    return pd.DataFrame(json.loads(manifest.read_text())["papers"])
 
 
 def mask_paper(raw: str, title: str) -> str:
@@ -32,14 +23,8 @@ def mask_paper(raw: str, title: str) -> str:
     return TITLE_MASK + "\n\n" + body
 
 
-def pdf_to_text(pdf_path) -> str:
-    """Plain text of a PDF, page by page; save the result where the manifest's ``paper_text_path`` points."""
-    import pymupdf
-    with pymupdf.open(pdf_path) as document:
-        return "\n\n".join(page.get_text() for page in document)
-
-
 def paper_text(paper: pd.Series) -> str:
+    """The text a model reads: the file at the manifest's ``paper_text_path``, title and author block removed."""
     return mask_paper((ROOT / paper.paper_text_path).read_text(), paper.title)
 
 

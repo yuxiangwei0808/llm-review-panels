@@ -7,7 +7,8 @@ PANEL_CORPUS, as in experiments/discussion.py.
 
 Usage:  uv run python experiments/roles.py run --max-usd 170
         uv run python experiments/roles.py coverage --max-usd 10      # coverage judge on the role reviews
-Writes: results/<corpus>/roles/{assignment.json, records.jsonl, coverage_labels.csv}
+Writes: results/<folder>/roles/{assignment.json, records.jsonl, coverage_labels.csv}, where <folder> is
+iclr2021_prechatgpt, iclr2022_prechatgpt, neurips2022_prechatgpt, or study2325.
 """
 from __future__ import annotations
 
@@ -29,7 +30,7 @@ import discussion
 
 from peerreview import content, prompts
 from peerreview.client import CostCeilingReached, OpenRouterClient
-from peerreview.config import MAX_OUTPUT_TOKENS, ROOT, TEMPERATURE, models, venues
+from peerreview.config import MAX_OUTPUT_TOKENS, ROOT, SEED, TEMPERATURE, models, venues
 from peerreview.papers import paper_text
 from peerreview.runner import MAX_ATTEMPTS, fit_to_context
 
@@ -37,7 +38,7 @@ OUT = discussion.OUT.parent / "roles"
 CONTENT = ROOT / "results" / ("study2325_panel8f" if discussion.CORPUS == "2023-25"
                               else f"{discussion.CORPUS}_prechatgpt") / "content"
 CACHE = ROOT / "cache" / "responses" / "role_panel"
-ROLE_SEED = "20260930:m7"   # seeds the role assignment (the string of the runs behind the paper)
+ROLE_SEED = f"{SEED}:roles"   # seeds the role assignment of papers without one in assignment.json
 ROLES = {
     "soundness": ("Soundness of the claims",
                   ("Are the central claims correct and supported? Check the theory, derivations, assumptions and "
@@ -70,8 +71,6 @@ def assignment(ids: list[str]) -> dict[str, dict[str, str]]:
 
 def manifest() -> pd.DataFrame:
     m = pd.DataFrame(json.loads(discussion.MANIFEST.read_text())["papers"]).set_index("paper_id")
-    if "venue_key" not in m:
-        m["venue_key"] = discussion.CORPUS
     return m
 
 
@@ -171,21 +170,31 @@ def role_records() -> dict:
 
 def coverage(args):
     """Label each role review with points against the paper's human-raised points, with the coverage judge that
-    labels the first reviews (same model and prompt)."""
+    labels the first reviews (same model and prompt). Writes coverage_labels.csv and match_records.jsonl; a review
+    whose labels did not parse is sampled afresh on a rerun."""
     annotator = models()[args.annotator]
     client = OpenRouterClient(CACHE.parent / f"content_match_roles_{args.annotator}", args.max_usd)
     points = load_points()
-    path = OUT / "coverage_labels.csv"
+    path, log_path = OUT / "coverage_labels.csv", OUT / "match_records.jsonl"
     done = set(zip(*[pd.read_csv(path)[c] for c in ("paper_id", "model")])) if path.exists() else set()
-    jobs = [(k, r) for k, r in role_records().items() if k not in done and k[0] in points and r["items"]]   # not score-only
-    print(f"{len(done)} labeled, {len(jobs)} to do", flush=True)
+    failed: dict[tuple, int] = {}
+    if log_path.exists():
+        for line in log_path.open():
+            r = json.loads(line)
+            if not r["parse_ok"]:
+                failed[(r["paper_id"], r["model"])] = max(failed.get((r["paper_id"], r["model"]), 0), r.get("attempt", 1))
+    jobs = [(k, r) for k, r in role_records().items() if k not in done and k[0] in points and r.get("items")]
+    print(f"{len(done)} labelled, {len(jobs)} to do", flush=True)
     lock = threading.Lock()
 
     def work(job):
         (pid, m), r = job
         summary = (r.get("extra") or {}).get("summary", "")
         summary = " ".join(map(str, summary)) if isinstance(summary, list) else str(summary or "")
-        rec = content.match_review(client, annotator, points[pid], r["items"], summary=summary, run_key=0)
+        rec = content.match_review(client, annotator, points[pid], r["items"], summary=summary, run_key=0,
+                                   attempt_offset=failed.get((pid, m), 0))
+        with lock, log_path.open("a") as log:
+            log.write(json.dumps(dict(paper_id=pid, model=m, role=r["role"], **rec)) + "\n")
         if not rec["parse_ok"]:
             return 0
         rows = [dict(paper_id=pid, model=m, role=r["role"], id=i, recognition=v[0], stance=v[1])
@@ -196,7 +205,7 @@ def coverage(args):
 
     with ThreadPoolExecutor(args.workers) as pool:
         ok = sum(pool.map(work, jobs))
-    print(f"labeled {ok} of {len(jobs)}, ${client.spent:.2f}")
+    print(f"labelled {ok} of {len(jobs)}, ${client.spent:.2f}")
 
 
 def main():

@@ -3,7 +3,7 @@
 Reads data/raw/openreview_corpus/<venue>/forums.jsonl, one OpenReview API v1 forum per line (not distributed; download
 the forums of the papers in data/manifests/). The venue is ICLR 2022 unless PANEL_CORPUS is iclr2021 or neurips2022.
 Reviewers are numbered in the dossier's letter order (Reviewer A = Reviewer 1). Used for the author responses in
-experiments/discussion.py and the human reviews read by the area chairs in experiments/area_chairs_iclr2022.py.
+experiments/discussion.py and for the ICLR 2022 human reviews the area chairs read in experiments/area_chairs.py.
 """
 from __future__ import annotations
 

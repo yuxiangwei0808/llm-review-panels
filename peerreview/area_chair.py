@@ -1,7 +1,7 @@
 """LLM area chairs: the prompt that gives a model a paper and a set of reviews, and the parser of its decision.
 
-The model writes a meta-review and decides accept or reject (prompt ``ac_binary``). The runners in
-``experiments/area_chairs*.py`` build the review sets and call the models.
+The model writes a meta-review and decides accept or reject (prompt ``ac_binary``). ``experiments/area_chairs.py``
+builds the review sets and calls the models.
 """
 from __future__ import annotations
 

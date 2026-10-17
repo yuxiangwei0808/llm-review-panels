@@ -15,13 +15,9 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from peerreview import content, records  # noqa: E402
-from peerreview.config import venues  # noqa: E402
+from peerreview.config import FOUR_FAMILY, MANIFESTS, PANEL, venues  # noqa: E402,F401
 
 RESULTS, DATA, OUTPUTS = ROOT / "results", ROOT / "data", ROOT / "outputs"
-PANEL = ["gpt-5.6-terra", "gemini-3.1-pro", "claude-sonnet-5", "deepseek-v4-flash-0731", "glm-5.2",
-         "qwen3.8-2.4t-a95b", "grok-4.7", "kimi-k3"]                          # the eight-family panel
-FOUR_FAMILY = ["gpt-5.1", "gpt-5.6-luna", "gpt-5.6-terra", "gemini-3.1-pro", "gemini-3.5-flash",
-               "gemini-3.5-flash-lite", "deepseek-v4-flash-0731", "glm-5.2"]  # the Families comparison panel
 # (name, venue key, results folder, venue group)
 VENUES = [("ICLR 2021", "iclr2021", "iclr2021_prechatgpt", "2021-22"),
           ("ICLR 2022", "iclr2022", "iclr2022_prechatgpt", "2021-22"),
@@ -30,8 +26,6 @@ VENUES = [("ICLR 2021", "iclr2021", "iclr2021_prechatgpt", "2021-22"),
           ("NeurIPS 2023", "neurips2023", "study2325", "2023-25"),
           ("ICML 2025", "icml2025", "study2325", "2023-25")]
 PRE_CHATGPT = {"iclr2021", "iclr2022", "neurips2022"}
-MANIFESTS = {"iclr2021": "iclr2021_prechatgpt_run.json", "iclr2022": "iclr2022_prechatgpt.json",
-             "neurips2022": "neurips2022_prechatgpt_run.json"}                 # 2023-25 venues: study_manifest.json
 SEED, DRAWS, BOOT = 20260930, 200, 500
 
 
@@ -50,7 +44,7 @@ def norm(venue: str, x: float) -> float:
 
 def manifest(venue: str) -> dict[str, dict]:
     """paper id -> paper (title, decision, human ratings, ...) for one venue."""
-    papers = json.loads((DATA / "manifests" / MANIFESTS.get(venue, "study_manifest.json")).read_text())["papers"]
+    papers = json.loads((DATA / "manifests" / MANIFESTS[venue]).read_text())["papers"]
     out = {p["paper_id"]: p for p in papers if p.get("venue_key", venue) == venue}
     for p in out.values():
         p.setdefault("venue_key", venue)
@@ -82,7 +76,7 @@ def first_reviews(venue: str, run: int = 0) -> dict[tuple[str, str], float]:
 
 def score_table(venue: str) -> pd.DataFrame:
     """Papers x the eight models, first reviews on [0, 1], papers with all eight. The 2021-22 venues read the score
-    table written when the first reviews were collected (results/<venue>/scores.csv), as Table 1 does; it lacks two
+    table written when the first reviews were collected (results/<venue>_prechatgpt/scores.csv), as Table 1 does; it lacks two
     NeurIPS 2022 papers whose reviews were completed later."""
     if venue in PRE_CHATGPT:
         s = pd.read_csv(RESULTS / folder(venue) / "scores.csv")

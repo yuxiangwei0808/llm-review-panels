@@ -5,8 +5,9 @@ reviewer's text raises each weakness h raised. From these labels, a committee of
 all human-raised weaknesses of the paper (a weakness is covered if a member raised it or the judge finds it in a
 member's review), exact over all size-n committees, n = 1..4, on papers with exactly four reviewers, with 2,000
 paper-bootstrap intervals. At n = 4 the committee wrote the reference and misses nothing by construction. A column
-keeps the held-out variant (each reviewer's weaknesses as the reference). --recompute rebuilds the curve from the saved
-labels without model calls. The human reviews (dossiers under data/dossiers/) are not distributed.
+keeps the held-out variant (each reviewer's weaknesses as the reference). A rerun labels only the pairs still missing,
+with fresh samples; --recompute rebuilds the curve from the saved labels (human_omission_curve_labels.csv) without model
+calls. Both need the human reviews (dossiers under data/dossiers/), which are not distributed.
 
 Usage:
   PEERREVIEW_EXPERIMENT=iclr2022_prechatgpt uv run python experiments/human_coverage.py --annotator gemini-3.5-flash-lite
@@ -57,7 +58,7 @@ def main():
     args = parser.parse_args()
     experiment = current()
     manifest = json.loads(experiment.manifest.read_text())["papers"]
-    venue_of = {p["paper_id"]: p.get("venue_key", experiment.venues[0]) for p in manifest}
+    venue_of = {p["paper_id"]: p["venue_key"] for p in manifest}
     out_dir = ROOT / "results" / experiment.name / "content"
     items_path, labels_path = out_dir / "reference_items.jsonl", out_dir / "coverage_labels.csv"
     stem = "human_omission_curve"
@@ -84,18 +85,23 @@ def main():
     print(f"{len(points)} papers, {len(jobs)} (held-out reviewer, other review) pairs; skipped {dict(skipped)}",
           flush=True)
 
+    labels_out = out_dir / f"{stem}_labels.csv"
+    prior = pd.read_csv(labels_out) if labels_out.exists() else pd.DataFrame(
+        columns=["paper_id", "held_out", "other", "id", "recognition", "stance"])
+    have = set(zip(prior.paper_id, prior.held_out, prior.other))
+    n_pairs = len(jobs)
+    jobs = [] if args.recompute else [j for j in jobs if j[:3] not in have]
+    offset = 3 if labels_out.exists() else 0      # a pair missing after an earlier run failed its three attempts
+    print(f"{len(have)} pairs labelled, {len(jobs)} to do", flush=True)
+
     def work(job):
         pid, hid, other, mine, text = job
-        rec = content.match_review(client, annotator, mine, None, review_text=text)
+        rec = content.match_review(client, annotator, mine, None, review_text=text, attempt_offset=offset)
         return pid, hid, other, rec
 
     rows, failures = [], 0
     out_dir.mkdir(parents=True, exist_ok=True)
-    if args.recompute:
-        labels = pd.read_csv(out_dir / f"{stem}_labels.csv")
-        jobs = []
-    with ThreadPoolExecutor(args.workers) as pool, \
-            (out_dir / f"{stem}_records.jsonl").open("a" if args.recompute else "w") as log:
+    with ThreadPoolExecutor(args.workers) as pool, (out_dir / f"{stem}_records.jsonl").open("a") as log:
         for k, future in enumerate(as_completed([pool.submit(work, j) for j in jobs]), start=1):
             pid, hid, other, rec = future.result()
             log.write(json.dumps(dict(paper_id=pid, held_out=hid, other=other, **rec)) + "\n")
@@ -106,9 +112,8 @@ def main():
                                  recognition=recognition, stance=stance))
             if k % 500 == 0 or k == len(jobs):
                 print(f"  {k}/{len(jobs)} pairs, ${client.spent:.2f}, {failures} parse failures", flush=True)
-    if not args.recompute:
-        labels = pd.DataFrame(rows)
-        labels.to_csv(out_dir / f"{stem}_labels.csv", index=False)
+    labels = pd.concat([prior, pd.DataFrame(rows)], ignore_index=True) if rows else prior
+    labels.to_csv(labels_out, index=False)
 
     # Human curve: per (paper, held-out reviewer, weakness): m other reviews, r recognizing it.
     n_reviews = {pid: len(sections_by_letter(load_dossier(venue_of[pid], pid))) for pid in points}
@@ -146,7 +151,7 @@ def main():
             for _ in {s["review"] for s in p["sources"]}:
                 llm_pairs[pid].append((int(n_llm[pid]), r))
 
-    def llm_curve(by_paper, sizes=(1, 2, 3, 4, 8, 12, 16, 24)):
+    def llm_curve(by_paper, sizes=(1, 2, 3, 4, 8)):
         pairs = [x for v in by_paper.values() for x in v]
         return {n: float(np.mean([comb(m - r, n) / comb(m, n) if m - r >= n else 0.0
                                   for m, r in pairs if m >= n])) for n in sizes}
@@ -197,7 +202,7 @@ def main():
                               n_papers=len(ids_lo), judge=args.annotator,
                               definition="n-reviewer committee vs. all human-raised weaknesses; papers with exactly 4 reviewers"))
     table.to_csv(out_dir / f"{stem}.csv", index=False)
-    summary = dict(annotator=args.annotator, papers=len(ids_lo), pairs=len(jobs), parse_failures=failures,
+    summary = dict(annotator=args.annotator, papers=len(ids_lo), pairs=n_pairs, parse_failures=failures,
                    human_missed_pct={n + 1: round(100 * v, 2) for n, v in enumerate(point)},
                    human_missed_pct_per_heldout_reviewer={n + 1: round(100 * v, 2) for n, v in enumerate(heldout_point)},
                    llm_missed_pct_heldout_weighting={k: round(100 * v, 2) for k, v in llm_curve(llm_pairs).items()},
