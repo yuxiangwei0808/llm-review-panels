@@ -1,20 +1,19 @@
 """Notes: each reviewer revises its first review after reading three notes from "another reader".
 
 The notes (field ``arm``), the same three for the eight reviewers of a paper:
-  missed        human-raised weaknesses that none of the panel's first reviews raises
-  mentioned     human-raised weaknesses that some first review already raises
-  false         human-raised weaknesses of another paper (seeded pairing)
-  fresh_missed  the missed notes given before a fresh review instead of a revision
-  fresh_false   the false notes given before a fresh review
-Papers: every decided paper with at least three missed and three mentioned weaknesses, by the coverage judge's labels
-of the first reviews. The notes given per paper are in design_full.json or design.json in the output folder; `design`
-writes design.json if neither exists. The venue is chosen with PANEL_CORPUS, as in experiments/discussion.py.
+  missed             human-raised weaknesses that none of the panel's first reviews raises
+  already_raised     human-raised weaknesses that some first review already raises
+  other_paper        human-raised weaknesses of another paper (seeded pairing)
+  fresh_missed       the missed notes given before a fresh review instead of a revision
+  fresh_other_paper  the other paper's notes given before a fresh review
+Papers: every decided paper with at least three missed and three already-raised weaknesses, by the coverage judge's
+labels of the first reviews. The notes given per paper are in design.json in the output folder; `design` writes it if
+it does not exist. The venue group is chosen with VENUE, as in experiments/discussion.py.
 
 Usage:
-  PANEL_CORPUS=iclr2021 uv run python experiments/notes.py run --max-usd 300
-  PANEL_CORPUS=iclr2021 uv run python experiments/notes.py adoption --max-usd 20   # which notes the reviews take up
-Writes: results/<folder>/injection/records.jsonl and adoption_labels.csv, where <folder> is iclr2021_prechatgpt,
-iclr2022_prechatgpt, neurips2022_prechatgpt, or study2325_panel8f (the 2023-25 venues).
+  VENUE=iclr2021 uv run python experiments/notes.py run --max-usd 300
+  VENUE=iclr2021 uv run python experiments/notes.py adoption --max-usd 20     # which notes the reviews take up
+Writes: results/<group>/notes/records.jsonl and adoption_labels.csv.
 """
 from __future__ import annotations
 
@@ -40,13 +39,13 @@ from peerreview.config import MAX_OUTPUT_TOKENS, ROOT, SEED, TEMPERATURE, models
 from peerreview.papers import paper_text
 from peerreview.runner import MAX_ATTEMPTS, fit_to_context
 
-FOLDER = ROOT / "results" / ("study2325_panel8f" if discussion.CORPUS == "2023-25" else f"{discussion.CORPUS}_prechatgpt")
-OUT = FOLDER / "injection"
-WEAKNESSES = FOLDER / "content" / "reference_items.jsonl"
+FOLDER = ROOT / "results" / discussion.VENUE
+OUT = FOLDER / "notes"
+WEAKNESSES = FOLDER / "content" / "human_points.jsonl"
 LABELS = FOLDER / "content" / "coverage_labels.csv"      # the coverage judge's labels of the first reviews
-CACHE = ROOT / "cache" / "responses" / "injection"
-ARMS = ["missed", "mentioned", "false"]
-FRESH = {"fresh_missed": "missed", "fresh_false": "false"}   # notes before a fresh review, and the notes they use
+CACHE = ROOT / "cache" / "responses" / "notes"
+ARMS = ["missed", "already_raised", "other_paper"]
+FRESH = {"fresh_missed": "missed", "fresh_other_paper": "other_paper"}   # notes before a fresh review, and their notes
 N_NOTES = 3
 NOTES_SEED = f"{SEED}:notes"   # seeds the choice of notes and the order they are shown in
 
@@ -61,11 +60,9 @@ def _weaknesses() -> dict[str, list[dict]]:
 
 
 def design() -> dict:
-    """The notes per paper: the released design (design_full.json, else design.json), or a new one over every
-    eligible paper, written to design.json."""
-    for name in ("design_full.json", "design.json"):
-        if (OUT / name).exists():
-            return json.loads((OUT / name).read_text())
+    """The notes per paper: the released design.json, or a new one over every eligible paper, written there."""
+    if (OUT / "design.json").exists():
+        return json.loads((OUT / "design.json").read_text())
     manifest = {p["paper_id"]: p for p in json.loads(discussion.MANIFEST.read_text())["papers"]}
     weak = _weaknesses()
     labels = pd.read_csv(LABELS)
@@ -89,8 +86,8 @@ def design() -> dict:
         out["papers"][pid] = {
             "partner": partner,
             "missed": [{"id": w["id"], "text": w["text"]} for w in missed],
-            "mentioned": [{"id": w["id"], "text": w["text"]} for w in known],
-            "false": [{"id": f"{partner}:{w['id']}", "text": w["text"]} for w in false]}
+            "already_raised": [{"id": w["id"], "text": w["text"]} for w in known],
+            "other_paper": [{"id": f"{partner}:{w['id']}", "text": w["text"]} for w in false]}
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / "design.json").write_text(json.dumps(out, indent=1))
     return out
@@ -131,7 +128,7 @@ def run(args):
         own = reviews[(pid, key)]
         source_arm = FRESH.get(arm, arm)
         notes = notes_block(design_["papers"][pid][source_arm], pid, source_arm)
-        template = "call_a_fresh_notes" if arm in FRESH else "call_a_notes"
+        template = "notes_fresh_review" if arm in FRESH else "notes_revision"
         fields = dict(notes=notes) if arm in FRESH else dict(
             source_review=discussion.review_text(own), initial_score=str(own["emitted_score"]), notes=notes)
 
@@ -153,8 +150,8 @@ def run(args):
             parsed = discussion.parse_round2(raw, venue.scores)
             rec = dict(paper_id=pid, model_id=key, arm=arm, prompt_template=template,
                        prompt_version=prompts.load_template(template)[0]["version"], prompt_sha256=prompts.sha256(prompt),
-                       notes=design_["papers"][pid][source_arm], round1_call_id=own["call_id"],
-                       round1_score=own["emitted_score"], emitted_score=parsed.score, items=parsed.items,
+                       notes=design_["papers"][pid][source_arm], first_review_call_id=own["call_id"],
+                       first_review_score=own["emitted_score"], emitted_score=parsed.score, items=parsed.items,
                        reasoning_text=parsed.reasoning, raw_response=raw, parse_ok=parsed.ok,
                        parse_error=parsed.error, extra=parsed.extra, paper_text_context_trimmed=trimmed,
                        temperature=temperature, attempt=attempt + 1, execution_model=usage.get("execution_model"),
@@ -207,7 +204,7 @@ def adoption(args):
         jobs.append((pid, m, arm, "revised", points, r["items"], (r.get("extra") or {}).get("summary", "")))
         own = reviews.get((pid, m))
         if own:
-            jobs.append((pid, m, arm, "round1", points, own["items"], (own.get("extra") or {}).get("summary", "")))
+            jobs.append((pid, m, arm, "first_review", points, own["items"], (own.get("extra") or {}).get("summary", "")))
     jobs = [j for j in jobs if j[:4] not in done]
     print(f"{len(done)} reviews labelled, {len(jobs)} to do", flush=True)
 
@@ -225,7 +222,7 @@ def adoption(args):
     table = pd.read_csv(path)
     table["share"] = table.mentioned / table.n_notes
     out = table.pivot_table(index="arm", columns="review", values="share", aggfunc="mean")
-    out["adopted (revised - first review)"] = out.revised - out.round1
+    out["adopted (revised - first review)"] = out.revised - out.first_review
     print(f"{len(table)} labelled reviews, ${client.spent:.2f}")
     print((100 * out).round(1).to_string())
 

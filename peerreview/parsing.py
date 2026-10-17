@@ -23,7 +23,7 @@ class Parsed:
     score: int | None = None
     accept_prob: float | None = None
     reasoning: str = ""
-    items: list[dict] = field(default_factory=list)          # review points (call A)
+    items: list[dict] = field(default_factory=list)          # review points (first reviews)
     extra: dict = field(default_factory=dict)
 
 
@@ -88,7 +88,7 @@ def _reasoning(raw: str) -> tuple[str, str]:
 
 
 def parse_own_review(raw: str, allowed: tuple[int, ...]) -> Parsed:
-    """Call A: ``<reasoning>`` block, then the review JSON with a rating."""
+    """A review: ``<reasoning>`` block, then the review JSON with a rating."""
     reasoning, rest = _reasoning(raw)
     try:
         try:
@@ -116,7 +116,7 @@ def parse_own_review(raw: str, allowed: tuple[int, ...]) -> Parsed:
 
 
 def parse_rating_lines(raw: str, allowed: tuple[int, ...]) -> Parsed:
-    """Call F_holistic: ``<reasoning>`` block, then DECISIVE_FACTOR / ACCEPT_PROB / RATING lines."""
+    """A score from the human reviews: ``<reasoning>`` block, then DECISIVE_FACTOR / ACCEPT_PROB / RATING lines."""
     reasoning, rest = _reasoning(raw)
     ratings = RATING_LINE.findall(rest)
     if not ratings:

@@ -1,23 +1,24 @@
 """Human committees' coverage of human-raised weaknesses, judged the same way as the LLM reviews.
 
-For every paper and every human reviewer h, the coverage judge (prompt match_points) labels whether each other
+For every paper and every human reviewer h, the coverage judge (prompt coverage_judge) labels whether each other
 reviewer's text raises each weakness h raised. From these labels, a committee of n human reviewers is scored against
 all human-raised weaknesses of the paper (a weakness is covered if a member raised it or the judge finds it in a
 member's review), exact over all size-n committees, n = 1..4, on papers with exactly four reviewers, with 2,000
 paper-bootstrap intervals. At n = 4 the committee wrote the reference and misses nothing by construction. A column
 keeps the held-out variant (each reviewer's weaknesses as the reference). A rerun labels only the pairs still missing,
-with fresh samples; --recompute rebuilds the curve from the saved labels (human_omission_curve_labels.csv) without model
+with fresh samples; --recompute rebuilds the curve from the saved labels (human_coverage_labels.csv) without model
 calls. Both need the human reviews (dossiers under data/dossiers/), which are not distributed.
 
 Usage:
-  PEERREVIEW_EXPERIMENT=iclr2022_prechatgpt uv run python experiments/human_coverage.py --annotator gemini-3.5-flash-lite
-Writes: results/<experiment>/content/human_omission_curve.{csv,json}, plus the per-pair labels and records.
+  VENUE=iclr2022 uv run python experiments/human_coverage.py --annotator gemini-3.5-flash-lite
+Writes: results/<group>/content/human_coverage.{csv,json}, plus the per-pair labels and records.
 """
 from __future__ import annotations
 
 import argparse
 import collections
 import json
+import os
 import re
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -29,9 +30,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from peerreview import content
-from peerreview.experiment import current
 from peerreview.client import OpenRouterClient
-from peerreview.config import ROOT, models
+from peerreview.config import GROUPS, PANEL, ROOT, models
 from peerreview.papers import load_dossier
 
 N_BOOT, SEED, MAX_POOL, REVIEWERS = 2000, 20260928, 4, 4   # papers with exactly 4 reviewers, n = 1..4
@@ -56,12 +56,14 @@ def main():
     parser.add_argument("--recompute", action="store_true",
                         help="rebuild the curves from the saved labels; no model calls")
     args = parser.parse_args()
-    experiment = current()
-    manifest = json.loads(experiment.manifest.read_text())["papers"]
+    venue = os.environ.get("VENUE")
+    if venue not in GROUPS:
+        raise SystemExit(f"set VENUE to one of {', '.join(GROUPS)}")
+    manifest = json.loads((ROOT / "data" / "manifests" / f"{venue}.json").read_text())["papers"]
     venue_of = {p["paper_id"]: p["venue_key"] for p in manifest}
-    out_dir = ROOT / "results" / experiment.name / "content"
-    items_path, labels_path = out_dir / "reference_items.jsonl", out_dir / "coverage_labels.csv"
-    stem = "human_omission_curve"
+    out_dir = ROOT / "results" / venue / "content"
+    items_path, labels_path = out_dir / "human_points.jsonl", out_dir / "coverage_labels.csv"
+    stem = "human_coverage"
     points: dict[str, list[dict]] = {}
     for line in items_path.open():
         item = json.loads(line)
@@ -134,7 +136,7 @@ def main():
 
     # LLM curve with the same held-out weighting: each weakness once per reviewer who raised it.
     llm = pd.read_csv(labels_path)
-    llm = llm[llm.model.isin(experiment.models)]
+    llm = llm[llm.model.isin(PANEL)]
     llm_rec = llm[llm.recognition.isin(["specific", "partial"])]
     n_llm = llm.groupby("paper_id").review_id.nunique()
     llm_pairs: dict[str, list[tuple[int, int]]] = collections.defaultdict(list)

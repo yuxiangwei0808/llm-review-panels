@@ -18,15 +18,15 @@ import collections
 import numpy as np
 import pandas as pd
 
-from common import (DATA, MEASURES, PANEL, PRE_CHATGPT, RESULTS, VENUES, complete, conditions, decision, error_correlation,
+from common import (MEASURES, PANEL, PRE_CHATGPT, RESULTS, VENUES, complete, conditions, decision, error_correlation,
                     folder, jsonl, manifest, matrix, measures, ratings, write)
 
-RESTRICTED = {"discussion": "discussion", "hidden_scores": "discussion_text", "hidden_verdicts": "discussion_masked",
-              "independence": "discussion_independent"}
-DESIGNS = [("notes", "missed", "second_look"), ("notes_fresh", "fresh_missed", "run1"), ("roles", "roles", "round1"),
-           ("hidden_scores", "discussion_text", "second_look"), ("hidden_verdicts", "discussion_masked", "second_look"),
-           ("independence", "discussion_independent", "second_look"), ("discussion", "discussion", "second_look"),
-           ("rebuttal", "rebuttal", "second_look")]
+RESTRICTED = {"discussion": "discussion", "hidden_scores": "hidden_scores", "hidden_verdicts": "hidden_verdicts",
+              "independence": "independence"}
+DESIGNS = [("notes", "missed", "plain_revision"), ("notes_fresh", "fresh_missed", "first_review_run1"), ("roles", "roles", "first_review"),
+           ("hidden_scores", "hidden_scores", "plain_revision"), ("hidden_verdicts", "hidden_verdicts", "plain_revision"),
+           ("independence", "independence", "plain_revision"), ("discussion", "discussion", "plain_revision"),
+           ("rebuttal", "rebuttal", "plain_revision")]
 ci = lambda b: [float(np.percentile(b, 2.5)), float(np.percentile(b, 97.5))]
 
 
@@ -38,37 +38,37 @@ def rebuttal(by_venue):
     out, rng = {"venues": {}, "groups": {}}, np.random.default_rng(20261011)
     for name, venue, _, group in VENUES:
         man, S = by_venue[venue]
-        arms = ["round1", "second_look", "rebuttal"] + (["llm_rebuttal"] if venue == "iclr2022" else [])
+        arms = ["first_review", "plain_revision", "rebuttal"] + (["reply_to_review"] if venue == "iclr2022" else [])
         ids = complete(man, S, arms)
         X = {a: matrix(S, ids, a) for a in arms}
         out["venues"][name] = {"papers": len(ids), "group": group} | {
-            a: dict(changed=float((np.abs(X[a] - X["round1"]) > 1e-9).mean()), abs_change=float(9 * np.abs(X[a] - X["round1"]).mean()))
+            a: dict(changed=float((np.abs(X[a] - X["first_review"]) > 1e-9).mean()), abs_change=float(9 * np.abs(X[a] - X["first_review"]).mean()))
             for a in arms[1:]}
         if venue == "iclr2022":
             h, t = human_mean(man, ids), np.array([decision(man[p]) for p in ids])
-            for a in ("rebuttal", "llm_rebuttal"):
-                diff = lambda i: measures(X[a][i], h[i], t[i]) - measures(X["second_look"][i], h[i], t[i])
+            for a in ("rebuttal", "reply_to_review"):
+                diff = lambda i: measures(X[a][i], h[i], t[i]) - measures(X["plain_revision"][i], h[i], t[i])
                 pt, bs = diff(np.arange(len(ids))), np.array([diff(rng.integers(0, len(ids), len(ids))) for _ in range(1000)])
                 out[f"iclr2022_{a}_vs_plain"] = {k: dict(change=float(pt[j]), ci=ci(bs[:, j])) for j, k in enumerate(MEASURES)}
     for group in ("2021-22", "2023-25"):
         vs = [v for v in out["venues"].values() if v["group"] == group]
         out["groups"][group] = {a: {k: float(np.mean([v[a][k] for v in vs])) for k in ("changed", "abs_change")}
-                                for a in ("second_look", "rebuttal")}
+                                for a in ("plain_revision", "rebuttal")}
     return out
 
 
 def coverage(venue, man):
     """Per review and for the whole panel: share of human-raised weaknesses raised after the plain revision and after
     discussion, on papers whose eight revisions are all labelled by the judge."""
-    source = DATA / "processed/content" if venue not in PRE_CHATGPT else RESULTS / folder(venue) / "content"
+    source = RESULTS / "2023-25" / "discussion" if venue not in PRE_CHATGPT else RESULTS / folder(venue) / "content"
     weak = {}
-    for w in jsonl(source / "reference_items.jsonl"):
+    for w in jsonl(source / "human_points.jsonl"):
         if w["polarity"] == "weakness":
             weak.setdefault(w["paper_id"], set()).add(w["id"])
     lab = pd.read_csv(RESULTS / folder(venue) / "discussion" / "coverage_labels.csv")
     lab = lab[lab.model.isin(PANEL) & (lab.paper_id.isin(man) if venue not in PRE_CHATGPT else True)]
     have = lab.groupby(["paper_id", "arm"]).model.nunique().unstack()
-    arms = ["second_look", "discussion"]
+    arms = ["plain_revision", "discussion"]
     keep = [p for p in have.index if all(have.loc[p].get(a, 0) == len(PANEL) for a in arms) and weak.get(p)]
     hit = lab[lab.recognition.isin(["specific", "partial"])]
     rows = []
@@ -80,17 +80,17 @@ def coverage(venue, man):
             row[f"review_{a}"] = h.groupby("model").id.nunique().reindex(PANEL, fill_value=0).mean() / len(weak[p])
         rows.append(row)
     d = pd.DataFrame(rows)
-    return dict(papers=len(d), review_coverage=[float(d.review_second_look.mean()), float(d.review_discussion.mean())],
-                panel_miss=[float(1 - d.panel_second_look.mean()), float(1 - d.panel_discussion.mean())])
+    return dict(papers=len(d), review_coverage=[float(d.review_plain_revision.mean()), float(d.review_discussion.mean())],
+                panel_miss=[float(1 - d.panel_plain_revision.mean()), float(1 - d.panel_discussion.mean())])
 
 
 def misjudgment_growth(man, S, rng):
     """Slope of the change in the panel's mean score (discussion minus plain revision, 1-10 points) on how much the panel
     had overrated the paper in its first reviews; positive means misjudged papers move further the same way."""
-    ids = [p for p in complete(man, S, ("round1", "second_look", "discussion"))]
-    first = matrix(S, ids, "round1").mean(1)
+    ids = [p for p in complete(man, S, ("first_review", "plain_revision", "discussion"))]
+    first = matrix(S, ids, "first_review").mean(1)
     err = 9 * (first - human_mean(man, ids))
-    change = 9 * (matrix(S, ids, "discussion").mean(1) - matrix(S, ids, "second_look").mean(1))
+    change = 9 * (matrix(S, ids, "discussion").mean(1) - matrix(S, ids, "plain_revision").mean(1))
     slope = lambda i: float(np.polyfit(err[i], change[i], 1)[0])
     return dict(papers=len(ids), slope=slope(np.arange(len(ids))),
                 ci=ci([slope(rng.integers(0, len(ids), len(ids))) for _ in range(1000)]))
@@ -100,16 +100,16 @@ def discussion(by_venue):
     out, rng_corr, rng_growth = {}, np.random.default_rng(20261006), np.random.default_rng(20261010)
     for name, venue, _, _ in VENUES:
         man, S = by_venue[venue]
-        ids = sorted(complete(man, S, ("round1", "second_look", "discussion")))
-        R1, SL, DI = (matrix(S, ids, a) for a in ("round1", "second_look", "discussion"))
+        ids = sorted(complete(man, S, ("first_review", "plain_revision", "discussion")))
+        R1, SL, DI = (matrix(S, ids, a) for a in ("first_review", "plain_revision", "discussion"))
         sd = lambda M: float(M.std(1, ddof=1).mean())
         o = dict(papers=len(ids), changed_plain_revision=float((SL != R1).mean()), changed_discussion=float((DI != R1).mean()),
                  spread_ratio=sd(DI) / sd(SL), coverage=coverage(venue, man))
         # rise in error correlation from a plain revision to full and restricted discussion
-        ids_r = sorted(complete(man, S, ("round1", "second_look", *RESTRICTED.values())))
+        ids_r = sorted(complete(man, S, ("first_review", "plain_revision", *RESTRICTED.values())))
         h = human_mean(man, ids_r)
-        A = {a: matrix(S, ids_r, a) for a in ("second_look", *RESTRICTED.values())}
-        rise = lambda i: [error_correlation(A[a][i], h[i]) - error_correlation(A["second_look"][i], h[i]) for a in RESTRICTED.values()]
+        A = {a: matrix(S, ids_r, a) for a in ("plain_revision", *RESTRICTED.values())}
+        rise = lambda i: [error_correlation(A[a][i], h[i]) - error_correlation(A["plain_revision"][i], h[i]) for a in RESTRICTED.values()]
         rng = np.random.default_rng(20261010)
         pt, bs = rise(np.arange(len(ids_r))), np.array([rise(rng.integers(0, len(ids_r), len(ids_r))) for _ in range(1000)])
         o["error_corr_rise"] = {k: dict(rise=pt[j], ci=ci(bs[:, j])) for j, k in enumerate(RESTRICTED)} | {"papers": len(ids_r)}
@@ -137,19 +137,19 @@ def area_chairs():
     responses, the papers of the ICLR 2022 area-chair comparison."""
     out, data, rng = {}, {}, np.random.default_rng(20261011)
     for name, venue, d, _ in VENUES:
-        recs = [r for r in jsonl(RESULTS / d / "area_chair" / "records.jsonl") if r.get("parse_ok") and r.get("truth") in ("accept", "reject")]
-        latest = {(r["paper_id"], r["arm"], r["ac_model_id"]): r for r in recs if r["arm"] in ("H0", "P0")}
-        arms, chairs = ["H0", "P0"], sorted({k[2] for k in latest})
+        recs = [r for r in jsonl(RESULTS / d / "area_chair" / "records.jsonl") if r.get("parse_ok") and r.get("venue_decision") in ("accept", "reject")]
+        latest = {(r["paper_id"], r["arm"], r["ac_model_id"]): r for r in recs if r["arm"] in ("human_reviews", "panel_reviews")}
+        arms, chairs = ["human_reviews", "panel_reviews"], sorted({k[2] for k in latest})
         papers = sorted({k[0] for k in latest})
         if venue == "iclr2022":
             revised = collections.Counter(r["paper_id"] for r in {(r["paper_id"], r["model_id"]): r for r in jsonl(
                 RESULTS / d / "discussion" / "records_rebuttal.jsonl") if r["parse_ok"] and r["arm"] == "rebuttal"}.values())
             papers = [p for p in papers if revised[p] == len(PANEL)]
         keep = [p for p in papers if all((p, a, c) in latest for a in arms for c in chairs)
-                and latest[(p, "H0", chairs[0])].get("venue_key", venue) == venue]
-        wrong = lambda a: np.array([all(latest[(p, a, c)]["decision"] != latest[(p, a, c)]["truth"] for c in chairs) for p in keep], float)
-        false_accept = np.array([latest[(p, "P0", chairs[0])]["truth"] == "reject" for p in keep])
-        h, pw = wrong("H0"), wrong("P0")
+                and latest[(p, "human_reviews", chairs[0])].get("venue_key", venue) == venue]
+        wrong = lambda a: np.array([all(latest[(p, a, c)]["decision"] != latest[(p, a, c)]["venue_decision"] for c in chairs) for p in keep], float)
+        false_accept = np.array([latest[(p, "panel_reviews", chairs[0])]["venue_decision"] == "reject" for p in keep])
+        h, pw = wrong("human_reviews"), wrong("panel_reviews")
         data[name] = (h, pw, false_accept)
         n = len(keep)
         bs = [pw[i].mean() - h[i].mean() for i in (rng.integers(0, n, n) for _ in range(2000))]

@@ -17,8 +17,10 @@ Model calls go through OpenRouter: set `OPENROUTER_API_KEY`. The analyses need o
 
 ## Data
 
-The review records, judge labels, and human annotations are in `dataset.zip`. Unzip it in the repository root; it
-creates `data/` and `results/`, and its `DATA_README.md` describes every file.
+The review records, judge labels, and human annotations are released as a dataset whose `data/` and `results/` folders
+go in the repository root; its `DATA_README.md` describes every file. Results are organized by venue group (`iclr2021`,
+`iclr2022`, `neurips2022`, and `2023-25` for ICLR 2025, NeurIPS 2023, and ICML 2025), with the first reviews under
+`results/first_reviews/<model>/<venue>/`.
 
 ### Inputs for running models
 
@@ -40,7 +42,7 @@ For 180 of the 2023-25 papers, the author responses are the authors' first round
 peerreview/    library: model client, configuration, prompts, parsing, records, review runner, coverage judge, area chair
 experiments/   scripts that run the panels and the judge (model calls)
 analysis/      scripts that compute results from the saved records (no model calls)
-configs/       models, venues, and experiment settings
+configs/       models and venues
 prompts/       prompt templates
 ```
 
@@ -49,7 +51,7 @@ prompts/       prompt templates
 | Module | Contents |
 |---|---|
 | `client.py` | Model calls through OpenRouter, with an on-disk response cache and a cost ceiling |
-| `config.py` | Venue and model settings from `configs/*.yaml` |
+| `config.py` | Venue and model settings from `configs/*.yaml`, the two panels, and the venue groups |
 | `prompts.py` | Loads the templates in `prompts/` and fills their fields |
 | `parsing.py` | Parses model responses into scores and review items |
 | `records.py` | Reads and writes per-call records, one JSON object per line |
@@ -57,38 +59,37 @@ prompts/       prompt templates
 | `runner.py` | First reviews for a set of papers and models |
 | `content.py` | Weakness extraction from human reviews and the coverage judge |
 | `area_chair.py` | The area-chair prompt and the parser of its decision |
-| `experiment.py` | Experiment selection for the coverage judge (`PEERREVIEW_EXPERIMENT`) |
 
 ## Running the panels
 
 The scripts in `experiments/` call models; each script's docstring gives its options, and every run takes a spending
 ceiling (`--max-usd`). Responses are cached under `cache/`, so a rerun resumes where it stopped and retries failed
-cells with fresh samples. The scripts after first reviews select the venue with the environment variable `PANEL_CORPUS`
-(`iclr2021`, `iclr2022`, `neurips2022`, or `2023-25`; `iclr2022` when unset); the coverage judge selects a panel and
-venues with `PEERREVIEW_EXPERIMENT` (a config in `configs/experiments/`). The steps depend on each other in this order:
+cells with fresh samples. The scripts after first reviews select the venue group with the environment variable `VENUE`
+(`iclr2021`, `iclr2022`, `neurips2022`, or `2023-25`; `iclr2022` when unset). The steps depend on each other in this
+order:
 
 1. `reviews.py`: first reviews.
 2. `judge.py extract`, then `judge.py match`: the weaknesses in the human reviews and the labels of the first reviews;
    then `human_coverage.py`.
-3. `discussion.py run` with `second_look` and `discussion`, then the restricted discussions (they run on the papers
+3. `discussion.py run` with `plain_revision` and `discussion`, then the restricted discussions (they run on the papers
    complete in both), and the rebuttal conditions; then `discussion.py coverage`.
 4. `notes.py run`, then `notes.py adoption`; `roles.py run`, then `roles.py coverage`; `area_chairs.py run`.
 
 ```bash
-uv run python experiments/reviews.py iclr2025 --models kimi-k3 grok-4.7 --tag panel8f --max-usd 50
-PANEL_CORPUS=iclr2021 uv run python experiments/discussion.py run --arms second_look discussion --max-usd 300
-PEERREVIEW_EXPERIMENT=iclr2021_prechatgpt uv run python experiments/judge.py match --annotator gemini-3.5-flash-lite --tag prechatgpt
+uv run python experiments/reviews.py iclr2025 --models kimi-k3 grok-4.7 --max-usd 50
+VENUE=iclr2021 uv run python experiments/judge.py match --annotator gemini-3.5-flash-lite
+VENUE=iclr2021 uv run python experiments/discussion.py run --arms plain_revision discussion --max-usd 300
 ```
 
 | Script | Runs | Prompts |
 |---|---|---|
-| `reviews.py` | First reviews; with `--calls F_holistic`, scores from the human reviews instead | `call_a`, `call_f_holistic` |
-| `judge.py` | `extract`: the weaknesses in each paper's human reviews; `match`: the coverage judge's labels of the first reviews | `extract_points`, `match_points` |
-| `human_coverage.py` | The coverage judge applied to human committees | `match_points` |
-| `discussion.py` | `run`: plain revision; discussion with the other reviews, with scores hidden, with verdicts hidden, or with an instruction to judge independently; revision after author responses or after a reply to the reviewer's own review. `coverage`: the coverage judge on the revisions | `call_a_second_look`, `call_a_discussion*`, `call_a_revision`, `author_reply` |
-| `notes.py` | `run`: revision or fresh review after notes with weaknesses the panel missed, and control notes. `adoption`: which notes the reviews raise | `call_a_notes`, `call_a_fresh_notes`, `match_points` |
-| `roles.py` | `run`: first reviews with an assigned focus. `coverage`: the coverage judge on them | `call_a_role`, `match_points` |
-| `area_chairs.py` | Area-chair decisions from the human reviews or the panel's first reviews | `ac_binary` |
+| `reviews.py` | First reviews; with `--calls score_from_human_reviews`, scores from the human reviews instead | `review`, `score_from_human_reviews` |
+| `judge.py` | `extract`: the weaknesses in each paper's human reviews; `match`: the coverage judge's labels of the first reviews | `extract_points`, `coverage_judge` |
+| `human_coverage.py` | The coverage judge applied to human committees | `coverage_judge` |
+| `discussion.py` | `run`: plain revision; discussion with the other reviews, with scores hidden, with verdicts hidden, or with an instruction to judge independently; revision after author responses or after a reply to the reviewer's own review. `coverage`: the coverage judge on the revisions | `plain_revision`, `discussion*`, `revision_after_response`, `author_reply` |
+| `notes.py` | `run`: revision or fresh review after notes with weaknesses the panel missed, and control notes. `adoption`: which notes the reviews raise | `notes_revision`, `notes_fresh_review`, `coverage_judge` |
+| `roles.py` | `run`: first reviews with an assigned focus. `coverage`: the coverage judge on them | `role_review`, `coverage_judge` |
+| `area_chairs.py` | Area-chair decisions from the human reviews or the panel's first reviews | `area_chair` |
 | `forums.py`, `verdict_mask.py` | Helpers: OpenReview forum threads; masking of scores and verdict sentences | |
 
 ## Analyses
@@ -118,5 +119,4 @@ In the paper, these give Figure 1 and Table 1 (`scaling.py`), Section 3.1 and Fi
 |---|---|
 | `configs/models.yaml` | Each model's OpenRouter id, family, context window, and request settings |
 | `configs/venues.yaml` | Each venue's rating scale, accept threshold, and review-form wording |
-| `configs/experiments/*.yaml` | The eight-family panel on each venue group (models, venues, paper manifest), for the coverage judge |
 | `prompts/*.md` | Prompt templates: a YAML header and a body with `{placeholder}` fields |

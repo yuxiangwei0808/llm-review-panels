@@ -2,8 +2,8 @@
 
 Per paper, model and run:
 
-* call ``A``: the model reviews the paper (title withheld) and chooses a score;
-* call ``F_holistic``: the model scores the paper from the human reviews, ratings removed, instead of its own review.
+* ``review``: the model reviews the paper (title withheld) and chooses a score;
+* ``score_from_human_reviews``: the model scores the paper from the human reviews, ratings removed, instead of its own.
 
 Records follow the layout in ``records.py``. A run can be interrupted and restarted: cells already saved with a
 successful parse are skipped, and the client's cache means no request is paid for twice.
@@ -30,8 +30,7 @@ MAX_ATTEMPTS = 3            # fresh samples of a cell whose response does not pa
 PROGRESS_EVERY = 25         # paper-runs between progress lines
 CONTEXT_NOTE = ("\n\nCONTEXT-LIMIT NOTE: the paper text was cut here to fit this model's context "
                 "window. Material after this point exists in the submission but is not shown.")
-TEMPLATE = {"A": "call_a", "F_holistic": "call_f_holistic"}
-STAGE = {"A": "paper_review", "F_holistic": "fixed_evidence"}
+TEMPLATE = {"review": "review", "score_from_human_reviews": "score_from_human_reviews"}   # call -> prompt
 
 
 def fit_to_context(text: str, model: Model, prompt_overhead_bytes: int) -> tuple[str, bool]:
@@ -45,10 +44,10 @@ def fit_to_context(text: str, model: Model, prompt_overhead_bytes: int) -> tuple
 
 
 class RunWriter:
-    """Appends records and saves the prompt and paper-text artifacts of one run folder."""
+    """Appends one call's records and saves the prompt and paper-text artifacts of a model's venue folder."""
 
-    def __init__(self, folder: Path, stage: str):
-        self.folder, self.path = folder, folder / records.STAGE_FILE[stage]
+    def __init__(self, folder: Path, call: str):
+        self.folder, self.path = folder, folder / records.FILES[call]
         (folder / "input_artifacts").mkdir(parents=True, exist_ok=True)
         (folder / "paper_inputs").mkdir(exist_ok=True)
         self.lock = threading.Lock()
@@ -59,7 +58,7 @@ class RunWriter:
                 r = json.loads(line)
                 key = (r["paper_id"], r["run_idx"], r["call_type"])
                 # A review without strengths or weaknesses is sampled again: the coverage judge needs its points.
-                if r["parse_ok"] and not (r["call_type"] == "A" and not r["items"]):
+                if r["parse_ok"] and not (r["call_type"] == "review" and not r["items"]):
                     self.done.add(key)
                 else:
                     self.attempts[key] = max(self.attempts.get(key, 0), r.get("attempt", 1))
@@ -112,8 +111,8 @@ def _record(writer, model, venue, paper_id, run_idx, call_type, prompt_sha, arti
             temperature, text, usage, parsed, latency, attempt, extra) -> dict:
     identity = f"{model.key}|{venue.key}|{paper_id}|{call_type}|{run_idx}|{prompt_sha}"
     record = dict(
-        call_id=hashlib.sha256(identity.encode()).hexdigest()[:24], block=STAGE[call_type],
-        call_type=call_type, mode="sampled", paper_id=paper_id, model_id=model.key,
+        call_id=hashlib.sha256(identity.encode()).hexdigest()[:24], call_type=call_type, paper_id=paper_id,
+        model_id=model.key,
         run_idx=run_idx, model_snapshot=usage.get("execution_model", model.api_model),
         temperature=temperature, prompt_hash=prompts.sha256(prompts.load_template(
             TEMPLATE[call_type])[1]), prompt_version=header["version"], input_hash=prompt_sha,
@@ -142,42 +141,41 @@ def _with_points(parsed: parsing.Parsed) -> parsing.Parsed:
 def run_paper(client, model: Model, venue: Venue, paper: pd.Series, run_idx: int,
               calls: tuple[str, ...], review: RunWriter, fixed: RunWriter) -> None:
     pid = paper.paper_id
-    if "A" in calls and (pid, run_idx, "A") not in review.done:
+    if "review" in calls and (pid, run_idx, "review") not in review.done:
         overhead = len(prompts.own_review(venue, "").encode())
         text, trimmed = fit_to_context(paper_text(paper), model, overhead)
         paper_artifact, paper_sha = review.artifact("paper_inputs", text, ".md")
-        _call(client, review, model, venue, pid, run_idx, "A", prompts.own_review(venue, text),
+        _call(client, review, model, venue, pid, run_idx, "review", prompts.own_review(venue, text),
               lambda raw: _with_points(parsing.parse_own_review(raw, venue.scores)),
               dict(paper_text_artifact=paper_artifact, paper_text_sent_sha256=paper_sha,
                    paper_text_context_trimmed=trimmed))
-    if "F_holistic" in calls and (pid, run_idx, "F_holistic") not in fixed.done:
+    if "score_from_human_reviews" in calls and (pid, run_idx, "score_from_human_reviews") not in fixed.done:
         dossier = load_dossier(venue.key, pid)
-        _call(client, fixed, model, venue, pid, run_idx, "F_holistic",
+        _call(client, fixed, model, venue, pid, run_idx, "score_from_human_reviews",
               prompts.shared_evidence(venue, dossier["holistic_text"]),
               lambda raw: parsing.parse_rating_lines(raw, venue.scores), dict(form="holistic"))
 
 
-def run(client, venue_key: str, model_keys: list[str], papers: pd.DataFrame, tag: str,
-        calls: tuple[str, ...] = ("A",), runs: int = 1, workers: int = 8, root: Path = RAW_OUTPUTS) -> None:
-    """Run ``calls`` for every paper x model x run and write ``<root>/<model>/<venue>/<stage>_<tag>``."""
+def run(client, venue_key: str, model_keys: list[str], papers: pd.DataFrame, calls: tuple[str, ...] = ("review",),
+        runs: int = 1, workers: int = 8, root: Path = RAW_OUTPUTS) -> None:
+    """Run ``calls`` for every paper x model x run and write ``<root>/<model>/<venue>/``."""
     venue = venues()[venue_key]
     papers = papers[papers.venue_key == venue_key]
     for key in model_keys:
         model = models()[key]
-        writers = {STAGE[call]: RunWriter(records.run_dir(key, venue_key, STAGE[call], root, tag), STAGE[call])
-                   for call in calls}
-        for writer in writers.values():
-            (writer.folder / "run_meta.json").write_text(json.dumps(dict(
-                venue_key=venue.key, venue_name=venue.name, scale=list(venue.scores),
-                accept_threshold=venue.accept_threshold, tag=tag), indent=1) + "\n")
-            papers.to_json(writer.folder / "manifest.jsonl", orient="records", lines=True)
+        folder = records.run_dir(key, venue_key, root)
+        writers = {call: RunWriter(folder, call) for call in calls}
+        (folder / "run_meta.json").write_text(json.dumps(dict(
+            venue_key=venue.key, venue_name=venue.name, scale=list(venue.scores),
+            accept_threshold=venue.accept_threshold), indent=1) + "\n")
+        papers.to_json(folder / "manifest.jsonl", orient="records", lines=True)
         jobs = [(paper, run_idx) for _, paper in papers.iterrows() for run_idx in range(runs)]
         errors, started = [], time.perf_counter()
         print(f"{key}: {len(jobs)} paper-runs over {len(papers)} papers, calls {list(calls)}, "
               f"{workers} workers", flush=True)
         with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {pool.submit(run_paper, client, model, venue, paper, run_idx, calls,
-                                   writers.get("paper_review"), writers.get("fixed_evidence")):
+                                   writers.get("review"), writers.get("score_from_human_reviews")):
                        (paper.paper_id, run_idx) for paper, run_idx in jobs}
             for done, future in enumerate(as_completed(futures), start=1):
                 paper_id, run_idx = futures[future]
@@ -192,7 +190,7 @@ def run(client, venue_key: str, model_keys: list[str], papers: pd.DataFrame, tag
                     print(f"  {key}: {done}/{len(jobs)} paper-runs, {elapsed / 60:.1f} min, "
                           f"${client.spent:.2f} spent, {len(errors)} errors", flush=True)
         if errors:
-            log = next(iter(writers.values())).folder / "errors.jsonl"
+            log = folder / "errors.jsonl"
             with log.open("a") as out:
                 for error in errors:
                     out.write(json.dumps(dict(error, model=key, venue=venue.key,

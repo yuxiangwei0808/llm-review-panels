@@ -16,8 +16,8 @@ import pandas as pd
 
 from common import PANEL, VENUES, conditions, error_correlation, manifest, ratings, write
 
-ARMS = {"second_look": "second_look", "roles": "roles", "notes": "missed", "discussion": "discussion",
-        "hidden_scores": "discussion_text", "hidden_verdicts": "discussion_masked", "independence": "discussion_independent"}
+ARMS = {"plain_revision": "plain_revision", "roles": "roles", "notes": "missed", "discussion": "discussion",
+        "hidden_scores": "hidden_scores", "hidden_verdicts": "hidden_verdicts", "independence": "independence"}
 
 
 def long_table() -> pd.DataFrame:
@@ -26,12 +26,12 @@ def long_table() -> pd.DataFrame:
     for _, venue, _, _ in VENUES:
         man, S = manifest(venue), conditions(venue)
         for p in man:
-            if any((p, m, "round1") not in S for m in PANEL):
+            if any((p, m, "first_review") not in S for m in PANEL):
                 continue
             h = float(np.mean(ratings(man[p])))
             for arm, key in ARMS.items():
                 if all((p, m, key) in S for m in PANEL):
-                    rows += [dict(venue=venue, paper=p, model=m, arm=arm, score=S[(p, m, key)], first=S[(p, m, "round1")],
+                    rows += [dict(venue=venue, paper=p, model=m, arm=arm, score=S[(p, m, key)], first=S[(p, m, "first_review")],
                                   human=h) for m in PANEL]
     return pd.DataFrame(rows)
 
@@ -64,7 +64,7 @@ def summarize(long: pd.DataFrame) -> dict:
                     for j, k in enumerate(("share_fell", "score_corr_change", "error_corr_change"))} | {"papers": len(g)}
         print(f"{arm:15s} scores fell on {point[0]:.0%} of papers; score correlation {point[1]:+.3f}; error correlation "
               f"{point[2]:+.3f}", flush=True)
-    base = panel[panel.arm == "second_look"]
+    base = panel[panel.arm == "plain_revision"]
     out["share_overrated"] = float((base["first"] - base.human > 1e-9).mean())
     print(f"the panel overrated {out['share_overrated']:.0%} of papers in its first reviews")
     return out

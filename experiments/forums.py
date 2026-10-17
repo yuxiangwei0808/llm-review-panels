@@ -1,7 +1,7 @@
 """OpenReview forum threads of the 2021-22 venues: official reviews, author responses, and the decision.
 
 Reads data/raw/openreview_corpus/<venue>/forums.jsonl, one OpenReview API v1 forum per line (not distributed; download
-the forums of the papers in data/manifests/). The venue is ICLR 2022 unless PANEL_CORPUS is iclr2021 or neurips2022.
+the forums of the papers in data/manifests/). The venue is ICLR 2022 unless VENUE is iclr2021 or neurips2022.
 Reviewers are numbered in the dossier's letter order (Reviewer A = Reviewer 1). Used for the author responses in
 experiments/discussion.py and for the ICLR 2022 human reviews the area chairs read in experiments/area_chairs.py.
 """
@@ -14,7 +14,7 @@ from functools import lru_cache
 from peerreview.config import ROOT
 from peerreview.papers import load_dossier
 
-VENUE = os.environ.get("PANEL_CORPUS") if os.environ.get("PANEL_CORPUS") in ("iclr2021", "neurips2022") else "iclr2022"
+VENUE = os.environ.get("VENUE") if os.environ.get("VENUE") in ("iclr2021", "neurips2022") else "iclr2022"
 FORUMS = ROOT / "data" / "raw" / "openreview_corpus" / VENUE / "forums.jsonl"
 REVIEW_FIELDS = [("summary_of_the_paper", "Summary of the paper"), ("main_review", "Main review"),
                  ("summary_of_the_review", "Summary of the review"), ("correctness", "Correctness"),

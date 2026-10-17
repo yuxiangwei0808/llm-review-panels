@@ -1,18 +1,18 @@
 """LLM area chairs: nine models each read a paper and a set of reviews and decide accept or reject.
 
 Conditions (field ``arm``), on every decided (accepted or rejected) paper of the venue:
-  H0  the official human reviews with their ratings, in reviewer order
-  P0  the eight-family panel's first reviews (call A, run 0) with their scores, in a seeded order, model names hidden
-The chair writes a meta-review and a decision (prompt ac_binary); the record keeps the venue's decision as ``truth``.
+  human_reviews  the official human reviews with their ratings, in reviewer order
+  panel_reviews  the eight-family panel's first reviews (run 0) with their scores, in a seeded order, model names hidden
+The chair writes a meta-review and a decision (prompt area_chair); the record keeps the venue's decision as
+``venue_decision``.
 A response that does not parse is sampled again up to three times; the third attempt after a response cut off at the
-output limit gets twice the limit. The venue is chosen with PANEL_CORPUS, as in experiments/discussion.py. ICLR 2022
+output limit gets twice the limit. The venue group is chosen with VENUE, as in experiments/discussion.py. ICLR 2022
 reads the human reviews from the OpenReview forum notes (experiments/forums.py), the other venues from the dossiers.
 
 Usage:
-  PANEL_CORPUS=iclr2021 uv run python experiments/area_chairs.py run --max-usd 180
+  VENUE=iclr2021 uv run python experiments/area_chairs.py run --max-usd 180
   uv run python experiments/area_chairs.py run --repeat 2 --max-usd 250     # ICLR 2022: a second independent run
-Writes: results/<folder>/area_chair/records.jsonl (ICLR 2022 repeat run: records_run2.jsonl), where <folder> is
-iclr2021_prechatgpt, iclr2022_prechatgpt, neurips2022_prechatgpt, or study2325.
+Writes: results/<group>/area_chair/records.jsonl (ICLR 2022 repeat run: records_run2.jsonl).
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ OUT = discussion.OUT.parent / "area_chair"
 CACHE = ROOT / "cache" / "responses" / "area_chairs"
 CHAIRS = ["gemini-3.1-pro", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gpt-5.6-luna", "gpt-5.6-terra",
           "gpt-5.1", "deepseek-v4-flash-0731", "glm-5.2", "claude-sonnet-5"]
-ARMS = ["H0", "P0"]
+ARMS = ["human_reviews", "panel_reviews"]
 
 
 def human_packet(venue_key: str, paper_id: str) -> str:
@@ -91,7 +91,7 @@ def decided() -> pd.DataFrame:
 
 def run(args):
     if args.repeat > 1:
-        assert discussion.CORPUS == "iclr2022", "repeat runs are on ICLR 2022"
+        assert discussion.VENUE == "iclr2022", "repeat runs are on ICLR 2022"
     papers = decided()
     OUT.mkdir(parents=True, exist_ok=True)
     records = OUT / ("records.jsonl" if args.repeat == 1 else f"records_run{args.repeat}.jsonl")
@@ -101,15 +101,15 @@ def run(args):
     first = discussion.first_reviews(set(papers.paper_id))
     packet = {}
     for p in papers.itertuples():
-        if "H0" in args.arms:
-            packet[(p.paper_id, "H0")] = human_packet(p.venue_key, p.paper_id)
+        if "human_reviews" in args.arms:
+            packet[(p.paper_id, "human_reviews")] = human_packet(p.venue_key, p.paper_id)
         revs = {m: first[(p.paper_id, m)] for m in discussion.PANEL if (p.paper_id, m) in first}
-        if "P0" in args.arms and len(revs) == len(discussion.PANEL):
-            packet[(p.paper_id, "P0")] = llm_packet(p.venue_key, p.paper_id, revs)
+        if "panel_reviews" in args.arms and len(revs) == len(discussion.PANEL):
+            packet[(p.paper_id, "panel_reviews")] = llm_packet(p.venue_key, p.paper_id, revs)
     by_id = papers.set_index("paper_id")
     client, model_of, lock = OpenRouterClient(CACHE, args.max_usd), models(), threading.Lock()
     jobs = [(pid, arm, m) for (pid, arm) in packet for m in args.chairs if (pid, arm, m) not in done]
-    print(f"{discussion.CORPUS}: {len(papers)} decided papers, {len(packet)} packets, {len(jobs)} decisions to run", flush=True)
+    print(f"{discussion.VENUE}: {len(papers)} decided papers, {len(packet)} packets, {len(jobs)} decisions to run", flush=True)
 
     def work(job):
         pid, arm, key = job
@@ -129,7 +129,7 @@ def run(args):
             text, usage = client.complete(model.api_model, prompt, **kwargs)
             decision, meta_review = area_chair.parse_decision(text)
             rec = dict(paper_id=pid, venue_key=vkey, arm=arm, ac_model_id=key, decision=decision,
-                       parse_ok=decision is not None, truth=by_id.loc[pid, "outcome"], meta_review=meta_review,
+                       parse_ok=decision is not None, venue_decision=by_id.loc[pid, "outcome"], meta_review=meta_review,
                        raw_response=text, prompt_sha256=prompts.sha256(prompt), packet_sha256=prompts.sha256(packet[(pid, arm)]),
                        paper_text_context_trimmed=trimmed, attempt=attempt + 1, max_tokens=max_tokens,
                        model_snapshot=usage.get("execution_model"),

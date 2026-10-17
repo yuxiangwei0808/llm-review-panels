@@ -19,12 +19,12 @@ from peerreview.config import FOUR_FAMILY, MANIFESTS, PANEL, venues  # noqa: E40
 
 RESULTS, DATA, OUTPUTS = ROOT / "results", ROOT / "data", ROOT / "outputs"
 # (name, venue key, results folder, venue group)
-VENUES = [("ICLR 2021", "iclr2021", "iclr2021_prechatgpt", "2021-22"),
-          ("ICLR 2022", "iclr2022", "iclr2022_prechatgpt", "2021-22"),
-          ("NeurIPS 2022", "neurips2022", "neurips2022_prechatgpt", "2021-22"),
-          ("ICLR 2025", "iclr2025", "study2325", "2023-25"),
-          ("NeurIPS 2023", "neurips2023", "study2325", "2023-25"),
-          ("ICML 2025", "icml2025", "study2325", "2023-25")]
+VENUES = [("ICLR 2021", "iclr2021", "iclr2021", "2021-22"),
+          ("ICLR 2022", "iclr2022", "iclr2022", "2021-22"),
+          ("NeurIPS 2022", "neurips2022", "neurips2022", "2021-22"),
+          ("ICLR 2025", "iclr2025", "2023-25", "2023-25"),
+          ("NeurIPS 2023", "neurips2023", "2023-25", "2023-25"),
+          ("ICML 2025", "icml2025", "2023-25", "2023-25")]
 PRE_CHATGPT = {"iclr2021", "iclr2022", "neurips2022"}
 SEED, DRAWS, BOOT = 20260930, 200, 500
 
@@ -65,10 +65,9 @@ def decision(p: dict) -> float:
 
 def first_reviews(venue: str, run: int = 0) -> dict[tuple[str, str], float]:
     """(paper, model) -> first-review score on [0, 1]: the last parsed review with items of the given run."""
-    tag = "prechatgpt" if venue in PRE_CHATGPT else "panel8f"
     out = {}
     for m in PANEL:
-        for r in records.iter_records(m, venue, "paper_review", "A", tag=tag):
+        for r in records.iter_records(m, venue):
             if r["run_idx"] == run and r["parse_ok"] and r["items"]:
                 out[(r["paper_id"], m)] = norm(venue, r["emitted_score"])
     return out
@@ -76,11 +75,11 @@ def first_reviews(venue: str, run: int = 0) -> dict[tuple[str, str], float]:
 
 def score_table(venue: str) -> pd.DataFrame:
     """Papers x the eight models, first reviews on [0, 1], papers with all eight. The 2021-22 venues read the score
-    table written when the first reviews were collected (results/<venue>_prechatgpt/scores.csv), as Table 1 does; it lacks two
+    table written when the first reviews were collected (results/<venue>/scores.csv), as Table 1 does; it lacks two
     NeurIPS 2022 papers whose reviews were completed later."""
     if venue in PRE_CHATGPT:
         s = pd.read_csv(RESULTS / folder(venue) / "scores.csv")
-        s = s[(s.call_type == "A") & (s.run_idx == 0) & s.model_id.isin(PANEL)]
+        s = s[(s.run_idx == 0) & s.model_id.isin(PANEL)]
         return s.pivot_table(index="paper_id", columns="model_id", values="score")[PANEL].dropna()
     man = manifest(venue)
     r1 = first_reviews(venue)
@@ -90,7 +89,7 @@ def score_table(venue: str) -> pd.DataFrame:
 
 def conditions(venue: str) -> dict[tuple[str, str, str], float]:
     """(paper, model, condition) -> score on [0, 1] for every condition of the paper (field ``arm`` in the records):
-    first reviews (round1, and run1 for the fresh-review comparison), the plain revision, discussion and its
+    first reviews (first_review, and first_review_run1 for the fresh-review comparison), the plain revision, discussion and its
     restrictions, rebuttal, notes, and roles."""
     d = folder(venue)
     man = manifest(venue)
@@ -99,14 +98,14 @@ def conditions(venue: str) -> dict[tuple[str, str, str], float]:
         for r in jsonl(RESULTS / d / "discussion" / name):
             if r["parse_ok"] and r["paper_id"] in man:
                 S[(r["paper_id"], r["model_id"], r["arm"])] = norm(venue, r["emitted_score"])
-    notes = RESULTS / ("study2325_panel8f" if d == "study2325" else d) / "injection" / "records.jsonl"
+    notes = RESULTS / d / "notes" / "records.jsonl"
     for r in jsonl(notes):
         if r.get("parse_ok") and r["paper_id"] in man and r["arm"] in ("missed", "fresh_missed"):
             S[(r["paper_id"], r["model_id"], r["arm"])] = norm(venue, r["emitted_score"])
     for r in jsonl(RESULTS / d / "roles" / "records.jsonl"):
         if r.get("parse_ok") and r["paper_id"] in man:
             S[(r["paper_id"], r["model_id"], "roles")] = norm(venue, r["emitted_score"])
-    for run, arm in ((0, "round1"), (1, "run1")):
+    for run, arm in ((0, "first_review"), (1, "first_review_run1")):
         for (p, m), s in first_reviews(venue, run).items():
             if p in man:
                 S[(p, m, arm)] = s

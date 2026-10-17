@@ -1,5 +1,5 @@
 ---
-id: call_a
+id: review
 version: v3.0.0
 purpose: First review. The model reads the paper, writes a review with strengths and weaknesses, and gives an overall
   score on the venue's scale.

@@ -21,7 +21,7 @@ RIGOR = {"soundness", "experiments"}
 
 
 def content_dir(venue):
-    return RESULTS / (folder(venue) if venue in PRE_CHATGPT else "study2325_panel8f") / "content"
+    return RESULTS / folder(venue) / "content"
 
 
 def first_review_labels(venue):
@@ -44,7 +44,7 @@ def human_curve(path):
 def missed_by_kind(venue, labels, full):
     hit = labels[labels.recognition.isin(["specific", "partial"])].groupby(["paper_id", "id"]).model.nunique()
     rows = []
-    for line in open(content_dir(venue) / "reference_items.jsonl"):
+    for line in open(content_dir(venue) / "human_points.jsonl"):
         x = json.loads(line)
         if x["paper_id"] in set(full) and x["polarity"] == "weakness" and x.get("kind") in ("substantive", "presentation"):
             rows.append(dict(paper=x["paper_id"], substantive=x["kind"] == "substantive",
@@ -106,8 +106,8 @@ def baseline_inputs(venue):
         ids, X = list(L.index), L.to_numpy(dtype=float)
     else:
         S = conditions(venue)
-        ids = complete(man, S, ("round1", "second_look", "discussion"))
-        X = matrix(S, ids, "round1")
+        ids = complete(man, S, ("first_review", "plain_revision", "discussion"))
+        X = matrix(S, ids, "first_review")
     keep = [i for i, p in enumerate(ids) if len(ratings(man[p])) >= 4]
     return X[keep], [np.array(ratings(man[ids[i]])) for i in keep]
 
@@ -116,14 +116,14 @@ def main():
     out = {"miss_rate": {}, "missed_by_kind": {}, "human_committees": {}, "error_correlation": {}}
     for name, venue, _, _ in VENUES:
         labels, full = first_review_labels(venue)
-        out["miss_rate"][name] = miss_rate(content_dir(venue) / "reference_items.jsonl", labels, full)
+        out["miss_rate"][name] = miss_rate(content_dir(venue) / "human_points.jsonl", labels, full)
         out["missed_by_kind"][name] = missed_by_kind(venue, labels, full)
         o, k = out["miss_rate"][name], out["missed_by_kind"][name]
         print(f"{name:13s} eight reviews miss {o['curve'][7][0]:.0f}% of human-raised weaknesses ({o['papers']} papers); "
               f"{k['rigor_share_of_missed'][0]:.0%} of misses concern rigor")
     for name, venue in (("ICLR 2021", "iclr2021"), ("ICLR 2022", "iclr2022"), ("NeurIPS 2022", "neurips2022")):
-        out["human_committees"][name] = human_curve(content_dir(venue) / "human_omission_curve.csv")
-    out["human_committees"]["2023-25 venues"] = human_curve(RESULTS / "study2325_panel8f/content/human_omission_curve.csv")
+        out["human_committees"][name] = human_curve(content_dir(venue) / "human_coverage.csv")
+    out["human_committees"]["2023-25 venues"] = human_curve(RESULTS / "2023-25" / "content" / "human_coverage.csv")
     rng = np.random.default_rng(20261008)
     for name, venue, _, _ in VENUES:
         X, R = baseline_inputs(venue)

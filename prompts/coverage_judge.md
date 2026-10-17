@@ -1,5 +1,5 @@
 ---
-id: match_points
+id: coverage_judge
 version: v1.1.0
 purpose: Coverage judge. Given a paper's human-raised points and one review, labels each point as raised specifically,
   partially, or not at all (absent), and the review's stance toward it.

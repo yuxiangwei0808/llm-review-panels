@@ -1,7 +1,7 @@
 ---
-id: call_a_discussion_text
+id: discussion_hidden_scores
 version: v1.0.0
-purpose: Discussion with hidden scores. As call_a_discussion, but the other reviews are shown without their scores.
+purpose: Discussion with hidden scores. As discussion, but the other reviews are shown without their scores.
 notes: The hidden-verdicts condition uses this prompt with verdict phrases also masked in the other reviews (experiments/verdict_mask.py).
 ---
 

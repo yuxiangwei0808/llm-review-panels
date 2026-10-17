@@ -1,9 +1,9 @@
 ---
-id: call_a_second_look
+id: plain_revision
 version: v1.0.0
 purpose: Plain revision (control). The reviewer sees the paper and its own first review again and writes a replacement
   review, with nothing from other reviewers.
-notes: Matches call_a_discussion word for word except for the block of other reviews.
+notes: Matches discussion word for word except for the block of other reviews.
 ---
 
 {own_review_prompt}

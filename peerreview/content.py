@@ -11,7 +11,7 @@ import re
 from . import prompts
 from .config import Model
 
-TEMPLATE = "match_points"
+TEMPLATE = "coverage_judge"
 MAX_OUTPUT_TOKENS = 4096
 TEMPERATURE = 0.0
 LINE = re.compile(r"^\W*([A-Za-z]\d{3}|[A-Za-z0-9_.-]+?)\W*:\W*(specific|partial|absent)\W+"

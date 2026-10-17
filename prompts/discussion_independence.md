@@ -1,10 +1,10 @@
 ---
-id: call_a_discussion_independent
+id: discussion_independence
 version: v1.0.0
-purpose: Discussion with an independence instruction. As call_a_discussion, plus one paragraph asking the reviewer
-  to use the other reviews only as points to check against the paper and not to move toward the other reviewers'
-  scores or conclusions.
-notes: The added paragraph is the only difference from call_a_discussion.
+purpose: Discussion with an independence instruction. As discussion, plus one paragraph asking the reviewer to use
+  the other reviews only as points to check against the paper and not to move toward the other reviewers' scores
+  or conclusions.
+notes: The added paragraph is the only difference from discussion.
 ---
 
 {own_review_prompt}

@@ -16,21 +16,21 @@ Writes: outputs/remedies.json
 import numpy as np
 import pandas as pd
 
-from common import (DATA, FOUR_FAMILY, MEASURES, PANEL, PRE_CHATGPT, VENUES, complete, conditions, decision, manifest,
+from common import (FOUR_FAMILY, MEASURES, PANEL, PRE_CHATGPT, RESULTS, VENUES, complete, conditions, decision, manifest,
                     matrix, measures, norm, ratings, write)
 from peerreview import records
 
-DESIGNS = [("notes", "missed", "second_look"), ("notes_fresh", "fresh_missed", "run1"), ("roles", "roles", "round1"),
-           ("discussion", "discussion", "second_look"), ("hidden_scores", "discussion_text", "second_look"),
-           ("hidden_verdicts", "discussion_masked", "second_look"), ("independence", "discussion_independent", "second_look"),
-           ("rebuttal", "rebuttal", "second_look")]
+DESIGNS = [("notes", "missed", "plain_revision"), ("notes_fresh", "fresh_missed", "first_review_run1"), ("roles", "roles", "first_review"),
+           ("discussion", "discussion", "plain_revision"), ("hidden_scores", "hidden_scores", "plain_revision"),
+           ("hidden_verdicts", "hidden_verdicts", "plain_revision"), ("independence", "independence", "plain_revision"),
+           ("rebuttal", "rebuttal", "plain_revision")]
 
 
 def family_scores(models, venue):
     """First reviews of run 0 on [0, 1], papers x models (2021-22 venues)."""
     rows = []
     for m in models:
-        for r in records.iter_records(m, venue, "paper_review", "A", tag="prechatgpt"):
+        for r in records.iter_records(m, venue):
             if r["parse_ok"] and r["run_idx"] == 0 and r["emitted_score"] is not None:
                 rows.append(dict(paper_id=r["paper_id"], model_id=m, score=norm(venue, r["emitted_score"])))
     s = pd.DataFrame(rows).drop_duplicates(["paper_id", "model_id"], keep="last")
@@ -40,13 +40,13 @@ def family_scores(models, venue):
 def family_scores_2325():
     """2023-25 venues: the eight-family panel as first run for the comparison (the four models it shares with the
     four-family panel from that panel's run, the other four from the eight-family run) and the four-family panel."""
-    s = pd.read_csv(DATA / "processed" / "scores" / "score_run_records.csv", low_memory=False)
-    s = s[(s.call_type == "A") & (s.run_idx == 0)]
+    s = pd.read_csv(RESULTS / "2023-25" / "four_family_scores.csv", low_memory=False)
+    s = s[(s.call_type == "review") & (s.run_idx == 0)]
     shared = [m for m in PANEL if m in FOUR_FAMILY]
     rows = [s[s.model_id.isin(shared)][["paper_id", "model_id", "score"]]]
     for m in [m for m in PANEL if m not in shared]:
         for v in ("iclr2025", "neurips2023", "icml2025"):
-            for r in records.iter_records(m, v, "paper_review", "A", tag="panel8f"):
+            for r in records.iter_records(m, v):
                 if r["parse_ok"] and r["run_idx"] == 0 and r["emitted_score"] is not None:
                     rows.append(pd.DataFrame([dict(paper_id=r["paper_id"], model_id=m, score=norm(v, r["emitted_score"]))]))
     new = pd.concat(rows).drop_duplicates(["paper_id", "model_id"], keep="last")

@@ -1,8 +1,0 @@
-# The eight-family panel's first reviews on ICLR 2025, NeurIPS 2023, and ICML 2025 (tag panel8f).
-# Used by experiments/judge.py and experiments/human_coverage.py with PEERREVIEW_EXPERIMENT=study2325_panel8f;
-# outputs go to results/study2325_panel8f/content/.
-name: study2325_panel8f
-models: [gpt-5.6-terra, gemini-3.1-pro, claude-sonnet-5, deepseek-v4-flash-0731, glm-5.2,
-         qwen3.8-2.4t-a95b, grok-4.7, kimi-k3]
-venues: [iclr2025, neurips2023, icml2025]
-manifest: data/manifests/study_manifest.json

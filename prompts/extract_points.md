@@ -3,7 +3,7 @@ id: extract_points
 version: v1.2.0
 purpose: Weakness extraction. Turns a paper's human reviews into the distinct points the reviewers raised, merged
   across reviewers; each point is classified (polarity, category, kind) and tied to quotes from the reviews. The
-  coverage judge (match_points) checks reviews against these points.
+  coverage judge (coverage_judge) checks reviews against these points.
 notes: One point per distinct concern; JSON output.
 ---
 

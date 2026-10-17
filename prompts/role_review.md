@@ -1,5 +1,5 @@
 ---
-id: call_a_role
+id: role_review
 version: v1.0.0
 purpose: 'Roles. A first review with one added section assigning a focus: soundness of the claims, experiments and
   evaluation, clarity and reproducibility, or novelty and related work. Each paper''s eight reviewers get the four

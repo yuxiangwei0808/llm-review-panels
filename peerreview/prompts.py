@@ -36,14 +36,14 @@ def sha256(text: str) -> str:
 
 
 def own_review(venue: Venue, paper_text: str) -> str:
-    """Call A, a first review: the model reviews the paper and chooses a score."""
-    return render("call_a", venue_name=venue.prompt_name,
+    """A first review: the model reviews the paper and chooses a score."""
+    return render("review", venue_name=venue.prompt_name,
                   rating_scale_block=venue.rating_scale_block,
                   allowed_scores=venue.allowed_scores, paper_text=paper_text)
 
 
 def shared_evidence(venue: Venue, dossier_text: str) -> str:
-    """Call F_holistic: the model scores the paper from the human reviews (ratings removed) instead of its own."""
-    return render("call_f_holistic", venue_name=venue.prompt_name, venue_short=venue.short_name,
+    """The model scores the paper from the human reviews (ratings removed) instead of its own."""
+    return render("score_from_human_reviews", venue_name=venue.prompt_name, venue_short=venue.short_name,
                   rating_scale_block=venue.rating_scale_block,
                   allowed_scores=venue.allowed_scores, dossier=dossier_text)

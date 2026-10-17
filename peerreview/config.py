@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONFIGS = ROOT / "configs"
 PROMPTS = ROOT / "prompts"
 DATA = ROOT / "data"
-RAW_OUTPUTS = ROOT / "results" / "raw"   # first reviews: <model>/<venue>/<stage>_<tag>/ (records.py)
+RAW_OUTPUTS = ROOT / "results" / "first_reviews"   # <model>/<venue>/ (records.py)
 SEED = 20260727                     # seed for paper sampling and review order
 MAX_OUTPUT_TOKENS = 8192
 TEMPERATURE = 1.0
@@ -19,9 +19,9 @@ PANEL = ["gpt-5.6-terra", "gemini-3.1-pro", "claude-sonnet-5", "deepseek-v4-flas
          "qwen3.8-2.4t-a95b", "grok-4.7", "kimi-k3"]                          # the eight-family panel
 FOUR_FAMILY = ["gpt-5.1", "gpt-5.6-luna", "gpt-5.6-terra", "gemini-3.1-pro", "gemini-3.5-flash",
                "gemini-3.5-flash-lite", "deepseek-v4-flash-0731", "glm-5.2"]  # the four-family panel (Families)
-MANIFESTS = {"iclr2021": "iclr2021_prechatgpt_run.json", "iclr2022": "iclr2022_prechatgpt.json",
-             "neurips2022": "neurips2022_prechatgpt_run.json", "iclr2025": "study_manifest.json",
-             "neurips2023": "study_manifest.json", "icml2025": "study_manifest.json"}   # under data/manifests/
+GROUPS = {"iclr2021": ("iclr2021",), "iclr2022": ("iclr2022",), "neurips2022": ("neurips2022",),
+          "2023-25": ("iclr2025", "neurips2023", "icml2025")}   # venue groups: results/<group>/, the VENUE variable
+MANIFESTS = {v: f"{g}.json" for g, vs in GROUPS.items() for v in vs}   # under data/manifests/
 
 
 @dataclass(frozen=True)

@@ -1,5 +1,5 @@
 ---
-id: call_a_revision
+id: revision_after_response
 version: v2.0.0
 purpose: Revision after an author response. The first-review prompt, the reviewer's first review, and one author
   response (the authors' real rebuttal, or a reply written to this review); the reviewer writes a replacement review.

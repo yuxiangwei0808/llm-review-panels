@@ -3,12 +3,11 @@
 The four roles (soundness, experiments, clarity, novelty) are given twice each per paper, rotated across the eight
 models by a seeded shuffle, so a role is not tied to a model family; the reviewer still reviews the whole paper and
 gives the usual overall score. The role per paper and model is in assignment.json. The venue is chosen with
-PANEL_CORPUS, as in experiments/discussion.py.
+VENUE, as in experiments/discussion.py.
 
 Usage:  uv run python experiments/roles.py run --max-usd 170
         uv run python experiments/roles.py coverage --max-usd 10      # coverage judge on the role reviews
-Writes: results/<folder>/roles/{assignment.json, records.jsonl, coverage_labels.csv}, where <folder> is
-iclr2021_prechatgpt, iclr2022_prechatgpt, neurips2022_prechatgpt, or study2325.
+Writes: results/<group>/roles/{assignment.json, records.jsonl, coverage_labels.csv}.
 """
 from __future__ import annotations
 
@@ -35,8 +34,7 @@ from peerreview.papers import paper_text
 from peerreview.runner import MAX_ATTEMPTS, fit_to_context
 
 OUT = discussion.OUT.parent / "roles"
-CONTENT = ROOT / "results" / ("study2325_panel8f" if discussion.CORPUS == "2023-25"
-                              else f"{discussion.CORPUS}_prechatgpt") / "content"
+CONTENT = ROOT / "results" / discussion.VENUE / "content"
 CACHE = ROOT / "cache" / "responses" / "role_panel"
 ROLE_SEED = f"{SEED}:roles"   # seeds the role assignment of papers without one in assignment.json
 ROLES = {
@@ -76,7 +74,7 @@ def manifest() -> pd.DataFrame:
 
 def load_points() -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = {}
-    for line in (CONTENT / "reference_items.jsonl").open():
+    for line in (CONTENT / "human_points.jsonl").open():
         w = json.loads(line); out.setdefault(w["paper_id"], []).append(w)
     return out
 
@@ -107,7 +105,7 @@ def run(args):
         name, desc = ROLES[role]
 
         def render(text):
-            return prompts.render("call_a_role", own_review_prompt=prompts.own_review(venue, text),
+            return prompts.render("role_review", own_review_prompt=prompts.own_review(venue, text),
                                   role_name=name, role_description=desc)
 
         text_in, trimmed = fit_to_context(paper_text(paper), model, len(render("").encode()))
@@ -125,8 +123,8 @@ def run(args):
             started = time.perf_counter()
             raw, usage = client.complete(model.api_model, prompt, **kwargs)
             parsed = discussion.parse_round2(raw, venue.scores)
-            rec = dict(paper_id=pid, model_id=key, role=role, prompt_template="call_a_role",
-                       prompt_version=prompts.load_template("call_a_role")[0]["version"],
+            rec = dict(paper_id=pid, model_id=key, role=role, prompt_template="role_review",
+                       prompt_version=prompts.load_template("role_review")[0]["version"],
                        prompt_sha256=prompts.sha256(prompt), emitted_score=parsed.score, items=parsed.items,
                        reasoning_text=parsed.reasoning, raw_response=raw, parse_ok=parsed.ok, parse_error=parsed.error,
                        extra=parsed.extra, paper_text_context_trimmed=trimmed, temperature=temperature,

@@ -1,5 +1,5 @@
 ---
-id: call_f_holistic
+id: score_from_human_reviews
 version: v2.0.0
 purpose: Scoring from the human reviews. The model reads the paper's human reviews (ratings removed, reviewer order
   shuffled) as its own recorded observations and gives a score on the venue's scale, so models that disagree differ

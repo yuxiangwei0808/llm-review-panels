@@ -1,8 +1,0 @@
-# The eight-family panel's first reviews on NeurIPS 2022 (reviewed before ChatGPT's release; tag prechatgpt).
-# Used by experiments/judge.py and experiments/human_coverage.py with PEERREVIEW_EXPERIMENT=neurips2022_prechatgpt;
-# outputs go to results/neurips2022_prechatgpt/content/.
-name: neurips2022_prechatgpt
-models: [gpt-5.6-terra, gemini-3.1-pro, claude-sonnet-5, deepseek-v4-flash-0731, glm-5.2,
-         qwen3.8-2.4t-a95b, grok-4.7, kimi-k3]
-venues: [neurips2022]
-manifest: data/manifests/neurips2022_prechatgpt_run.json

@@ -1,5 +1,5 @@
 ---
-id: ac_binary
+id: area_chair
 version: v1.0.0
 purpose: Area chair. The model reads a paper and a set of reviews (the human reviews or the panel's, anonymized)
   and writes a meta-review ending in an accept or reject decision.

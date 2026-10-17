@@ -1,23 +1,23 @@
-"""Weakness extraction and the coverage judge on an experiment's first reviews (configs/experiments/<name>.yaml).
+"""Weakness extraction and the coverage judge on the first reviews of a venue group (VENUE, as in experiments/discussion.py).
 
   extract   the distinct points raised by each paper's human reviews (prompt extract_points)
-            -> reference_items.jsonl, with every call in extract_records.jsonl
-  match     every first review (call A) of every model and run, labelled against the paper's points: raised
-            specifically, partially, or not (prompt match_points)  -> coverage_labels.csv, match_records.jsonl
+            -> human_points.jsonl, with every call in extract_records.jsonl
+  match     every first review of every model and run, labelled against the paper's points: raised specifically,
+            partially, or not (prompt coverage_judge)  -> coverage_labels.csv, match_records.jsonl
 
-Outputs go to results/<experiment>/content/. Steps resume: extracted papers and labelled reviews already on disk are
-skipped, and cached responses are free. The human reviews (dossiers under data/dossiers/) are not distributed.
+Outputs go to results/<group>/content/. Steps resume: extracted papers and labelled reviews already on disk are skipped,
+and earlier failures are sampled afresh. The human reviews (dossiers under data/dossiers/) are not distributed.
 
 Usage:
-  PEERREVIEW_EXPERIMENT=iclr2022_prechatgpt uv run python experiments/judge.py extract --annotator gpt-5.6-luna
-  PEERREVIEW_EXPERIMENT=iclr2022_prechatgpt uv run python experiments/judge.py match \
-      --annotator gemini-3.5-flash-lite --tag prechatgpt
+  VENUE=iclr2022 uv run python experiments/judge.py extract --annotator gpt-5.6-luna
+  VENUE=iclr2022 uv run python experiments/judge.py match --annotator gemini-3.5-flash-lite
 """
 from __future__ import annotations
 
 import argparse
 import datetime
 import json
+import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -27,21 +27,20 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from peerreview import content, records
 from peerreview.client import OpenRouterClient
-from peerreview.config import ROOT, models
-from peerreview.experiment import current
+from peerreview.config import GROUPS, PANEL, ROOT, models
 from peerreview.papers import load_dossier
 
-EXPERIMENT = OUT = None     # set in main() from PEERREVIEW_EXPERIMENT
+VENUE = OUT = None     # set in main() from the VENUE environment variable
 
 
 def papers() -> pd.DataFrame:
-    table = pd.DataFrame(json.loads(EXPERIMENT.manifest.read_text())["papers"])
-    return table[table.venue_key.isin(EXPERIMENT.venues)]
+    table = pd.DataFrame(json.loads((ROOT / "data" / "manifests" / f"{VENUE}.json").read_text())["papers"])
+    return table[table.venue_key.isin(GROUPS[VENUE])]
 
 
 def load_points() -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = {}
-    path = OUT / "reference_items.jsonl"
+    path = OUT / "human_points.jsonl"
     if path.exists():
         for line in path.open():
             item = json.loads(line)
@@ -73,7 +72,7 @@ def extract(args):
         return paper.paper_id, content.extract_points(client, annotator, load_dossier(paper.venue_key, paper.paper_id),
                                                       attempt_offset=failed.get(paper.paper_id, 0))
 
-    with ThreadPoolExecutor(args.workers) as pool, (OUT / "reference_items.jsonl").open("a") as out, \
+    with ThreadPoolExecutor(args.workers) as pool, (OUT / "human_points.jsonl").open("a") as out, \
             (OUT / "extract_records.jsonl").open("a") as log:
         for k, future in enumerate(as_completed([pool.submit(work, p) for p in todo]), start=1):
             pid, rec = future.result()
@@ -112,11 +111,11 @@ def match(args):
                 key = (r["paper_id"], r["model"], r["run"])
                 prior_failures[key] = max(prior_failures.get(key, 0), r.get("attempt", 1))
     reviews = []
-    for venue in EXPERIMENT.venues:
-        for model in EXPERIMENT.models:
+    for venue in GROUPS[VENUE]:
+        for model in args.models:
             latest: dict[tuple, dict] = {}
             try:
-                for r in records.iter_records(model, venue, "paper_review", "A", tag=args.tag):
+                for r in records.iter_records(model, venue):
                     if r["parse_ok"] and r["items"] and r["paper_id"] in points:
                         latest[(r["paper_id"], r["run_idx"])] = r        # last parsed record wins
             except FileNotFoundError:
@@ -166,14 +165,16 @@ def main():
     e.set_defaults(run=extract)
     m = sub.add_parser("match")
     m.add_argument("--annotator", required=True, choices=sorted(models()))
-    m.add_argument("--tag", required=True, help="tag of the first reviews (results/raw/<model>/<venue>/paper_review_<tag>)")
+    m.add_argument("--models", nargs="+", default=PANEL, choices=sorted(models()))
     m.add_argument("--workers", type=int, default=8)
     m.add_argument("--max-usd", type=float, default=40)
     m.set_defaults(run=match)
     args = parser.parse_args()
-    global EXPERIMENT, OUT
-    EXPERIMENT = current()
-    OUT = ROOT / "results" / EXPERIMENT.name / "content"
+    global VENUE, OUT
+    VENUE = os.environ.get("VENUE")
+    if VENUE not in GROUPS:
+        raise SystemExit(f"set VENUE to one of {', '.join(GROUPS)}")
+    OUT = ROOT / "results" / VENUE / "content"
     args.run(args)
 
 

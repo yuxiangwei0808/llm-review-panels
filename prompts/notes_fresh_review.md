@@ -1,8 +1,8 @@
 ---
-id: call_a_fresh_notes
+id: notes_fresh_review
 version: v1.0.0
 purpose: Notes before a fresh review. A first review (no earlier review shown) with three notes from "another reader"
-  given before the reviewer writes, framed as in call_a_notes.
+  given before the reviewer writes, framed as in notes_revision.
 ---
 
 {own_review_prompt}

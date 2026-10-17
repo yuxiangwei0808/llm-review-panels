@@ -1,10 +1,10 @@
 ---
-id: call_a_notes
+id: notes_revision
 version: v1.0.0
 purpose: Notes. The reviewer sees the paper, its own first review, and three notes from "another reader", then writes
   a replacement review. The notes are weaknesses the panel missed, weaknesses some reviewer raised, or another paper's
   weaknesses; the framing is the same in every condition.
-notes: Identical to call_a_second_look except for the notes and one sentence introducing them. The notes are presented
+notes: Identical to plain_revision except for the notes and one sentence introducing them. The notes are presented
   as possibly inaccurate, so the reviewer has to assess them.
 ---
 

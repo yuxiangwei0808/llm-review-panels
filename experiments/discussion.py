@@ -1,34 +1,32 @@
 """Revisions of the first reviews: plain revision, discussion and its restrictions, and revision after author responses.
 
-Each reviewer of the eight-family panel starts from its first review (call A, run 0) and writes a replacement review,
-one sample per model, paper, and condition (field ``arm``):
+Each reviewer of the eight-family panel starts from its first review (run 0) and writes a replacement review, one
+sample per model, paper, and condition (field ``arm``):
 
-  second_look             the paper and its own first review again (plain revision, the control)
-  discussion              plus the other seven first reviews with their scores, anonymized, in a seeded order
-  discussion_text         plus the other reviews without their scores (hidden scores)
-  discussion_masked       hidden scores, and sentences stating a verdict removed from the other reviews (hidden verdicts)
-  discussion_independent  discussion plus an instruction to check the other reviews against the paper, not follow them
-  rebuttal                plus the authors' real responses before the decision
-  llm_rebuttal            plus a reply to its own review, written by GPT-5.1 acting as the authors (ICLR 2022)
+  plain_revision    the paper and its own first review again (the control)
+  discussion        plus the other seven first reviews with their scores, anonymized, in a seeded order
+  hidden_scores     plus the other reviews without their scores
+  hidden_verdicts   hidden scores, and sentences stating a verdict removed from the other reviews
+  independence      discussion plus an instruction to check the other reviews against the paper, not follow them
+  rebuttal          plus the authors' real responses before the decision
+  reply_to_review   plus a reply to its own review, written by GPT-5.1 acting as the authors (ICLR 2022)
 
-second_look and discussion run on every paper with first reviews; the restricted discussions afterwards, on the papers
-where all eight reviewers have a first review and a revision in both; the rebuttal conditions on papers with an author
-response. The venue is chosen with PANEL_CORPUS: iclr2021, iclr2022 (the default), neurips2022, or 2023-25. Author
-responses come from the OpenReview forum files data/raw/openreview_corpus/<venue>/forums.jsonl (API v1 for 2021-22, v2
-for 2023-25; not distributed). The coverage step labels revisions against the points in
-results/<venue>_prechatgpt/content/ for 2021-22 and, for 2023-25, data/processed/content/ (the 332 papers whose
-weaknesses were extracted first).
+plain_revision and discussion run on every paper with first reviews; the restricted discussions afterwards, on the
+papers where all eight reviewers have a first review and a revision in both; the rebuttal conditions on papers with an
+author response. The venue group is chosen with VENUE: iclr2021, iclr2022 (the default), neurips2022, or 2023-25.
+Author responses come from the OpenReview forum files data/raw/openreview_corpus/<venue>/forums.jsonl (API v1 for
+2021-22, v2 for 2023-25; not distributed). The coverage step labels revisions against the human-raised points in
+results/<group>/content/human_points.jsonl, on 2023-25 results/2023-25/discussion/human_points.jsonl (332 papers).
 
 Usage:
-  PANEL_CORPUS=iclr2021 uv run python experiments/discussion.py run --arms second_look discussion --max-usd 300
-  uv run python experiments/discussion.py run --arms rebuttal llm_rebuttal --max-usd 200
+  VENUE=iclr2021 uv run python experiments/discussion.py run --arms plain_revision discussion --max-usd 300
+  uv run python experiments/discussion.py run --arms rebuttal reply_to_review --max-usd 200
   uv run python experiments/discussion.py run --repeat 2 --max-usd 300     # ICLR 2022: a second independent run
   uv run python experiments/discussion.py reparse                          # re-read failed responses, no model calls
   uv run python experiments/discussion.py coverage --max-usd 30            # coverage judge on the revisions
-Writes: results/<folder>/discussion/records.jsonl (rebuttal conditions: records_rebuttal.jsonl), coverage_labels.csv,
-where <folder> is iclr2021_prechatgpt, iclr2022_prechatgpt, neurips2022_prechatgpt, or study2325 (repeat runs:
-discussion_run2/, discussion_run3/).
-Responses are cached under cache/responses/discussion, so a rerun resumes for free.
+Writes: results/<group>/discussion/records.jsonl (rebuttal conditions: records_rebuttal.jsonl), coverage_labels.csv
+(repeat runs: results/iclr2022/discussion_run2/, discussion_run3/). Responses are cached under cache/responses/discussion,
+so a rerun resumes for free.
 """
 from __future__ import annotations
 
@@ -50,7 +48,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from peerreview import parsing, prompts, records
 from peerreview.client import CostCeilingReached, OpenRouterClient
-from peerreview.config import MANIFESTS, MAX_OUTPUT_TOKENS, PANEL, ROOT, SEED, TEMPERATURE, models, venues
+from peerreview.config import GROUPS, MAX_OUTPUT_TOKENS, PANEL, ROOT, SEED, TEMPERATURE, models, venues
 from peerreview.papers import load_dossier, paper_text
 from peerreview.runner import MAX_ATTEMPTS, fit_to_context
 
@@ -58,27 +56,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import forums
 from verdict_mask import masked, verdict_masked
 
-CORPUS = os.environ.get("PANEL_CORPUS", "iclr2022")
-if CORPUS == "2023-25":
-    MANIFEST = ROOT / "data" / "manifests" / "study_manifest.json"
-    OUT = ROOT / "results" / "study2325" / "discussion"
-    CONTENT = ROOT / "data" / "processed" / "content"     # the 332 papers whose weaknesses were extracted first
-    FIRST_REVIEW_SOURCES = [("iclr2025", "panel8f"), ("neurips2023", "panel8f"), ("icml2025", "panel8f")]
-elif CORPUS in ("iclr2021", "iclr2022", "neurips2022"):
-    MANIFEST = ROOT / "data" / "manifests" / MANIFESTS[CORPUS]
-    OUT = ROOT / "results" / f"{CORPUS}_prechatgpt" / "discussion"
-    CONTENT = ROOT / "results" / f"{CORPUS}_prechatgpt" / "content"
-    FIRST_REVIEW_SOURCES = [(CORPUS, "prechatgpt")]
-else:
-    raise SystemExit("PANEL_CORPUS must be iclr2021, iclr2022, neurips2022, or 2023-25")
+VENUE = os.environ.get("VENUE", "iclr2022")
+if VENUE not in GROUPS:
+    raise SystemExit(f"VENUE must be one of {', '.join(GROUPS)}")
+MANIFEST = ROOT / "data" / "manifests" / f"{VENUE}.json"
+OUT = ROOT / "results" / VENUE / "discussion"
+POINTS = (OUT if VENUE == "2023-25" else ROOT / "results" / VENUE / "content") / "human_points.jsonl"
 CACHE = ROOT / "cache" / "responses" / "discussion"
-ARMS = {"second_look": "call_a_second_look", "discussion": "call_a_discussion"}
-RESTRICTED = {"discussion_text": "call_a_discussion_text", "discussion_masked": "call_a_discussion_text",
-              "discussion_independent": "call_a_discussion_independent"}
-REBUTTAL = {"rebuttal": "call_a_revision", "llm_rebuttal": "call_a_revision"}
+ARMS = {"plain_revision": "plain_revision", "discussion": "discussion"}   # condition -> prompt
+RESTRICTED = {"hidden_scores": "discussion_hidden_scores", "hidden_verdicts": "discussion_hidden_scores",
+              "independence": "discussion_independence"}
+REBUTTAL = {"rebuttal": "revision_after_response", "reply_to_review": "revision_after_response"}
 TEMPLATES = {**ARMS, **RESTRICTED, **REBUTTAL}
 PEER_ARMS = {"discussion", *RESTRICTED}   # the conditions that show the other reviews
-AUTHOR_MODEL = "gpt-5.1"     # writes the llm_rebuttal replies
+AUTHOR_MODEL = "gpt-5.1"     # writes the replies of reply_to_review
 PEER_ORDER_SEED = f"{SEED}:peer-order"   # seeds the order in which a reviewer sees the other reviews
 FIRST_REVIEW_RUN = 0
 
@@ -87,7 +78,7 @@ def set_repeat(k: int) -> None:
     """Point the module at repeat run k: first reviews of run k-1, outputs in discussion_run<k>/."""
     global FIRST_REVIEW_RUN, OUT
     if k > 1:
-        assert CORPUS == "iclr2022", "repeat runs are on ICLR 2022"
+        assert VENUE == "iclr2022", "repeat runs are on ICLR 2022"
         FIRST_REVIEW_RUN, OUT = k - 1, OUT.parent / f"discussion_run{k}"
 
 
@@ -105,12 +96,12 @@ def all_records() -> list[dict]:
 
 
 def first_reviews(papers: set[str]) -> dict[tuple[str, str], dict]:
-    """(paper, model) -> the parsed first review (call A) of run FIRST_REVIEW_RUN, the last parsed attempt."""
+    """(paper, model) -> the parsed first review of run FIRST_REVIEW_RUN, the last parsed attempt."""
     out = {}
     for m in PANEL:
-        for venue_key, tag in FIRST_REVIEW_SOURCES:
+        for venue_key in GROUPS[VENUE]:
             try:
-                for r in records.iter_records(m, venue_key, "paper_review", "A", tag=tag):
+                for r in records.iter_records(m, venue_key):
                     if r["paper_id"] in papers and r["run_idx"] == FIRST_REVIEW_RUN and r["parse_ok"] and r["items"]:
                         out[(r["paper_id"], m)] = r
             except FileNotFoundError:
@@ -119,7 +110,7 @@ def first_reviews(papers: set[str]) -> dict[tuple[str, str], dict]:
 
 
 def complete_papers() -> list[str]:
-    """Papers where all eight reviewers have a first review and a parsed revision in second_look and discussion."""
+    """Papers where all eight reviewers have a first review and a parsed revision in plain_revision and discussion."""
     done = {(r["paper_id"], r["model_id"], r["arm"]) for r in all_records() if r["parse_ok"]}
     r1 = first_reviews({p for p, _, _ in done})
     return sorted({p for p, _, _ in done if all((p, m) in r1 and (p, m, a) in done for m in PANEL for a in ARMS)})
@@ -311,27 +302,27 @@ def _author_response_v2(paper_id: str) -> str:
 
 def real_author_response(paper_id: str) -> str:
     """The authors' responses before the decision, labelled by the review they reply to; empty if none."""
-    return _author_response_v2(paper_id) if CORPUS == "2023-25" else forums.author_response(paper_id)
+    return _author_response_v2(paper_id) if VENUE == "2023-25" else forums.author_response(paper_id)
 
 
 def build_prompt(arm: str, venue, paper: pd.Series, model, reviews: dict,
                  author_response: str | None = None) -> tuple[str, bool]:
     own = reviews[(paper.paper_id, model.key)]
     fields = dict(source_review=review_text(own), initial_score=str(own["emitted_score"]))
-    if arm in ("discussion", "discussion_independent"):
+    if arm in ("discussion", "independence"):
         fields["peer_reviews"] = peer_block(paper.paper_id, model.key, reviews)
-    if arm == "discussion_text":
+    if arm == "hidden_scores":
         fields["peer_reviews"] = peer_block(paper.paper_id, model.key, reviews, with_scores=False)
-    if arm == "discussion_masked":
+    if arm == "hidden_verdicts":
         fields["peer_reviews"] = peer_block(paper.paper_id, model.key, reviews, with_scores=False, mask_verdicts=True)
     if arm == "rebuttal":
         fields["author_response"] = real_author_response(paper.paper_id)
-    if arm == "llm_rebuttal":
+    if arm == "reply_to_review":
         fields["author_response"] = author_response or ""
 
     def render(text):
-        if arm in REBUTTAL:   # call_a_revision: the first-review prompt, split around the paper text
-            return prompts.render("call_a_revision", baseline_prompt_prefix=prompts.own_review(venue, ""),
+        if arm in REBUTTAL:   # the first-review prompt, split around the paper text
+            return prompts.render("revision_after_response", baseline_prompt_prefix=prompts.own_review(venue, ""),
                                   paper_text=text, baseline_prompt_suffix="", **fields)
         return prompts.render(TEMPLATES[arm], own_review_prompt=prompts.own_review(venue, text), **fields)
 
@@ -385,7 +376,7 @@ def run(args):
         model = model_of[key]
         venue = venues()[paper.venue_key]
         author_text, author_meta = (author_rebuttal(client, venue, paper, reviews[(paper.paper_id, key)])
-                                    if arm == "llm_rebuttal" else (None, {}))
+                                    if arm == "reply_to_review" else (None, {}))
         prompt, trimmed = build_prompt(arm, venue, paper, model, reviews, author_text)
         temperature = TEMPERATURE if model.accepts_temperature else None
         first = fails.get((paper.paper_id, key, arm), 0)
@@ -405,7 +396,7 @@ def run(args):
             record = dict(
                 paper_id=paper.paper_id, model_id=key, arm=arm, prompt_template=TEMPLATES[arm],
                 prompt_version=header["version"], prompt_sha256=prompts.sha256(prompt),
-                round1_call_id=own["call_id"], round1_score=own["emitted_score"],
+                first_review_call_id=own["call_id"], first_review_score=own["emitted_score"],
                 peers=peer_order(paper.paper_id, key, reviews) if arm in PEER_ARMS else [],
                 emitted_score=parsed.score, items=parsed.items, reasoning_text=parsed.reasoning,
                 raw_response=text, parse_ok=parsed.ok, parse_error=parsed.error, extra=parsed.extra,
@@ -471,17 +462,17 @@ def reparse(args):
 
 
 def load_points() -> dict[str, list[dict]]:
-    """The paper's human-raised points (reference_items.jsonl of the corpus's content folder)."""
+    """paper id -> its human-raised points (POINTS)."""
     points: dict[str, list[dict]] = {}
-    for line in (CONTENT / "reference_items.jsonl").open():
+    for line in POINTS.open():
         item = json.loads(line)
         points.setdefault(item["paper_id"], []).append(item)
     return points
 
 
 def coverage(args):
-    """Label every revised review with points against the paper's human-raised points (CONTENT), with the coverage
-    judge's model and prompt; with --arms round1, the first reviews too. Writes coverage_labels.csv and
+    """Label every revised review with points against the paper's human-raised points (POINTS), with the coverage
+    judge's model and prompt; with --arms first_review, the first reviews too. Writes coverage_labels.csv and
     match_records.jsonl. A review whose labels did not parse is sampled afresh on a rerun."""
     from peerreview import content
     set_repeat(args.repeat)
@@ -502,9 +493,9 @@ def coverage(args):
                 failed[key] = max(failed.get(key, 0), r.get("attempt", 1))
     latest = {(r["paper_id"], r["model_id"], r["arm"]): r for r in all_records()
               if r["parse_ok"] and r.get("items") and r["arm"] in args.arms and r["paper_id"] in points}
-    if "round1" in args.arms:   # the first reviews themselves, labelled with the revisions
+    if "first_review" in args.arms:   # the first reviews themselves, labelled with the revisions
         for (pid, m), r in first_reviews(set(points)).items():
-            latest[(pid, m, "round1")] = r
+            latest[(pid, m, "first_review")] = r
     jobs = [(k, r) for k, r in latest.items() if k not in done]
     print(f"{len(done)} reviews labelled, {len(jobs)} to do", flush=True)
     lock = threading.Lock()
@@ -556,7 +547,7 @@ def main():
     c.set_defaults(run=reparse)
     v = sub.add_parser("coverage")
     v.add_argument("--annotator", default="gemini-3.5-flash-lite")
-    v.add_argument("--arms", nargs="+", default=list(ARMS), choices=list(TEMPLATES) + ["round1"])
+    v.add_argument("--arms", nargs="+", default=list(ARMS), choices=list(TEMPLATES) + ["first_review"])
     v.add_argument("--repeat", type=int, default=1, choices=[1, 2, 3])
     v.add_argument("--workers", type=int, default=24)
     v.add_argument("--max-usd", type=float, required=True)
