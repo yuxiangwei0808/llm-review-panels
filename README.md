@@ -22,7 +22,8 @@ The review records, judge labels, and human annotations are on Hugging Face
 folders go in the repository root, and its `DATA_README.md` describes every file:
 
 ```bash
-hf download stanjsx/llm-review-panels --repo-type dataset --include "data/*" "results/*" --local-dir .
+uvx --from huggingface_hub hf download stanjsx/llm-review-panels --repo-type dataset \
+    --include "data/*" --include "results/*" --local-dir .
 ```
 
 Results are organized by venue group (`iclr2021`, `iclr2022`, `neurips2022`, and `2023-25` for ICLR 2025, NeurIPS
