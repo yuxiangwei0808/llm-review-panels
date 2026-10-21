@@ -48,7 +48,7 @@ class Venue:
 
 @dataclass(frozen=True)
 class Model:
-    key: str                     # folder name under results/raw/ and model_id in every record
+    key: str                     # folder name under results/first_reviews/ and model_id in every record
     family: str
     api_model: str               # OpenRouter identifier
     context_window_tokens: int
@@ -59,7 +59,7 @@ class Model:
 
 @lru_cache
 def venues() -> dict[str, Venue]:
-    raw = yaml.safe_load((CONFIGS / "venues.yaml").read_text())
+    raw = yaml.safe_load((CONFIGS / "venues.yaml").read_text(encoding="utf-8"))
     return {key: Venue(key=key, name=v["name"], prompt_name=v["prompt_name"],
                        short_name=v["short_name"], scores=tuple(v["scores"]),
                        accept_threshold=v["accept_threshold"],
@@ -69,5 +69,5 @@ def venues() -> dict[str, Venue]:
 
 @lru_cache
 def models() -> dict[str, Model]:
-    raw = yaml.safe_load((CONFIGS / "models.yaml").read_text())
+    raw = yaml.safe_load((CONFIGS / "models.yaml").read_text(encoding="utf-8"))
     return {key: Model(key=key, **m) for key, m in raw.items()}

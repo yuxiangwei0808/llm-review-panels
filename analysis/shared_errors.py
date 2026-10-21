@@ -44,7 +44,7 @@ def human_curve(path):
 def missed_by_kind(venue, labels, full):
     hit = labels[labels.recognition.isin(["specific", "partial"])].groupby(["paper_id", "id"]).model.nunique()
     rows = []
-    for line in open(content_dir(venue) / "human_points.jsonl"):
+    for line in open(content_dir(venue) / "human_points.jsonl", encoding="utf-8"):
         x = json.loads(line)
         if x["paper_id"] in set(full) and x["polarity"] == "weakness" and x.get("kind") in ("substantive", "presentation"):
             rows.append(dict(paper=x["paper_id"], substantive=x["kind"] == "substantive",

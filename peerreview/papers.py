@@ -25,7 +25,7 @@ def mask_paper(raw: str, title: str) -> str:
 
 def paper_text(paper: pd.Series) -> str:
     """The text a model reads: the file at the manifest's ``paper_text_path``, title and author block removed."""
-    return mask_paper((ROOT / paper.paper_text_path).read_text(), paper.title)
+    return mask_paper((ROOT / paper.paper_text_path).read_text(encoding="utf-8"), paper.title)
 
 
 def load_dossier(venue: str, paper_id: str) -> dict:
@@ -34,5 +34,5 @@ def load_dossier(venue: str, paper_id: str) -> dict:
     path = DATA / "dossiers" / venue / "study" / f"{paper_id}.json"
     if not path.exists():
         path = DATA / "dossiers" / venue / f"{paper_id}.json"
-    return json.loads(path.read_text())
+    return json.loads(path.read_text(encoding="utf-8"))
 

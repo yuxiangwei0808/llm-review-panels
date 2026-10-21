@@ -133,7 +133,7 @@ def discussion(by_venue):
 
 def area_chairs():
     """Unanimous errors of the nine LLM chairs: decided papers on which every chair decided both with the human reviews
-    (H0) and with the panel's reviews (P0); on ICLR 2022, the papers whose eight reviewers all revised after the author
+    (human_reviews) and with the panel's reviews (panel_reviews); on ICLR 2022, the papers whose eight reviewers all revised after the author
     responses, the papers of the ICLR 2022 area-chair comparison."""
     out, data, rng = {}, {}, np.random.default_rng(20261011)
     for name, venue, d, _ in VENUES:

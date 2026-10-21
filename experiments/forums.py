@@ -26,7 +26,7 @@ REVIEW_FIELDS = [("summary_of_the_paper", "Summary of the paper"), ("main_review
 @lru_cache
 def forums() -> dict[str, dict]:
     out = {}
-    with FORUMS.open() as lines:
+    with FORUMS.open(encoding="utf-8") as lines:
         for line in lines:
             r = json.loads(line)
             out[r["submission"]["id"]] = r

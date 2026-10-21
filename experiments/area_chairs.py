@@ -85,7 +85,7 @@ def llm_packet(venue_key: str, paper_id: str, reviews: dict[str, dict]) -> str:
 
 
 def decided() -> pd.DataFrame:
-    man = pd.DataFrame(json.loads(discussion.MANIFEST.read_text())["papers"])
+    man = pd.DataFrame(json.loads(discussion.MANIFEST.read_text(encoding="utf-8"))["papers"])
     return man[man.outcome.isin(["accept", "reject"])].sort_values("paper_id").reset_index(drop=True)
 
 
@@ -97,7 +97,7 @@ def run(args):
     records = OUT / ("records.jsonl" if args.repeat == 1 else f"records_run{args.repeat}.jsonl")
     done = set()
     if records.exists():
-        done = {(r["paper_id"], r["arm"], r["ac_model_id"]) for r in map(json.loads, records.open()) if r["parse_ok"]}
+        done = {(r["paper_id"], r["arm"], r["ac_model_id"]) for r in map(json.loads, records.open(encoding="utf-8")) if r["parse_ok"]}
     first = discussion.first_reviews(set(papers.paper_id))
     packet = {}
     for p in papers.itertuples():
@@ -136,7 +136,7 @@ def run(args):
                        usage={k: usage.get(k) for k in ("input_tokens", "output_tokens", "cost_usd", "cached",
                                                         "finish_reason", "provider")},
                        timestamp=datetime.datetime.now(datetime.UTC).isoformat())
-            with lock, records.open("a") as f:
+            with lock, records.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(rec) + "\n")
             if rec["parse_ok"]:
                 return rec

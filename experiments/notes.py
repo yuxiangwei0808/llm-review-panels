@@ -52,7 +52,7 @@ NOTES_SEED = f"{SEED}:notes"   # seeds the choice of notes and the order they ar
 
 def _weaknesses() -> dict[str, list[dict]]:
     weak: dict[str, list[dict]] = {}
-    for line in WEAKNESSES.open():
+    for line in WEAKNESSES.open(encoding="utf-8"):
         item = json.loads(line)
         if item["polarity"] == "weakness":
             weak.setdefault(item["paper_id"], []).append(item)
@@ -62,8 +62,8 @@ def _weaknesses() -> dict[str, list[dict]]:
 def design() -> dict:
     """The notes per paper: the released design.json, or a new one over every eligible paper, written there."""
     if (OUT / "design.json").exists():
-        return json.loads((OUT / "design.json").read_text())
-    manifest = {p["paper_id"]: p for p in json.loads(discussion.MANIFEST.read_text())["papers"]}
+        return json.loads((OUT / "design.json").read_text(encoding="utf-8"))
+    manifest = {p["paper_id"]: p for p in json.loads(discussion.MANIFEST.read_text(encoding="utf-8"))["papers"]}
     weak = _weaknesses()
     labels = pd.read_csv(LABELS)
     labels = labels[labels.model.isin(discussion.PANEL) & labels.recognition.isin(["specific", "partial"])]
@@ -89,7 +89,7 @@ def design() -> dict:
             "already_raised": [{"id": w["id"], "text": w["text"]} for w in known],
             "other_paper": [{"id": f"{partner}:{w['id']}", "text": w["text"]} for w in false]}
     OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "design.json").write_text(json.dumps(out, indent=1))
+    (OUT / "design.json").write_text(json.dumps(out, indent=1), encoding="utf-8")
     return out
 
 
@@ -103,14 +103,14 @@ def run(args):
     design_ = design()
     ids = sorted(design_["papers"])
     OUT.mkdir(parents=True, exist_ok=True)
-    manifest = pd.DataFrame(json.loads(discussion.MANIFEST.read_text())["papers"]).set_index("paper_id")
+    manifest = pd.DataFrame(json.loads(discussion.MANIFEST.read_text(encoding="utf-8"))["papers"]).set_index("paper_id")
     reviews = discussion.first_reviews(set(ids))
     model_of = models()
     client = OpenRouterClient(CACHE, args.max_usd)
     record_path = OUT / "records.jsonl"
     done, fails = set(), {}
     if record_path.exists():
-        for r in map(json.loads, record_path.open()):
+        for r in map(json.loads, record_path.open(encoding="utf-8")):
             key = (r["paper_id"], r["model_id"], r["arm"])
             if r["parse_ok"]:
                 done.add(key)
@@ -159,7 +159,7 @@ def run(args):
                                                         "cost_usd", "cached", "finish_reason", "provider")},
                        latency_s=round(time.perf_counter() - started, 3),
                        timestamp=datetime.datetime.now(datetime.UTC).isoformat())
-            with lock, record_path.open("a") as f:
+            with lock, record_path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(rec) + "\n")
             if parsed.ok:
                 return rec
@@ -194,7 +194,7 @@ def adoption(args):
     path = OUT / "adoption_labels.csv"
     done = set(map(tuple, pd.read_csv(path)[["paper_id", "model", "arm", "review"]].values)) if path.exists() else set()
     offset = 3 if path.exists() else 0      # a review missing after an earlier run failed its three attempts
-    recs = {(r["paper_id"], r["model_id"], r["arm"]): r for r in map(json.loads, (OUT / "records.jsonl").open())
+    recs = {(r["paper_id"], r["model_id"], r["arm"]): r for r in map(json.loads, (OUT / "records.jsonl").open(encoding="utf-8"))
             if r["parse_ok"] and r.get("items") and r["arm"] in ARMS}
     reviews = discussion.first_reviews(set(design_["papers"]))
     jobs = []

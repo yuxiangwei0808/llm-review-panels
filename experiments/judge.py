@@ -34,7 +34,7 @@ VENUE = OUT = None     # set in main() from the VENUE environment variable
 
 
 def papers() -> pd.DataFrame:
-    table = pd.DataFrame(json.loads((ROOT / "data" / "manifests" / f"{VENUE}.json").read_text())["papers"])
+    table = pd.DataFrame(json.loads((ROOT / "data" / "manifests" / f"{VENUE}.json").read_text(encoding="utf-8"))["papers"])
     return table[table.venue_key.isin(GROUPS[VENUE])]
 
 
@@ -42,7 +42,7 @@ def load_points() -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = {}
     path = OUT / "human_points.jsonl"
     if path.exists():
-        for line in path.open():
+        for line in path.open(encoding="utf-8"):
             item = json.loads(line)
             out.setdefault(item["paper_id"], []).append(item)
     return out
@@ -63,7 +63,7 @@ def extract(args):
     failures = []
     failed: dict[str, int] = {}     # earlier failed attempts per paper: a rerun draws fresh samples
     if (OUT / "extract_records.jsonl").exists():
-        for line in (OUT / "extract_records.jsonl").open():
+        for line in (OUT / "extract_records.jsonl").open(encoding="utf-8"):
             r = json.loads(line)
             if not r["parse_ok"]:
                 failed[r["paper_id"]] = max(failed.get(r["paper_id"], 0), r.get("attempt", 1))
@@ -72,8 +72,8 @@ def extract(args):
         return paper.paper_id, content.extract_points(client, annotator, load_dossier(paper.venue_key, paper.paper_id),
                                                       attempt_offset=failed.get(paper.paper_id, 0))
 
-    with ThreadPoolExecutor(args.workers) as pool, (OUT / "human_points.jsonl").open("a") as out, \
-            (OUT / "extract_records.jsonl").open("a") as log:
+    with ThreadPoolExecutor(args.workers) as pool, (OUT / "human_points.jsonl").open("a", encoding="utf-8") as out, \
+            (OUT / "extract_records.jsonl").open("a", encoding="utf-8") as log:
         for k, future in enumerate(as_completed([pool.submit(work, p) for p in todo]), start=1):
             pid, rec = future.result()
             log.write(json.dumps(dict(paper_id=pid, timestamp=_now(), **rec)) + "\n")
@@ -105,7 +105,7 @@ def match(args):
     prior_failures: dict[tuple, int] = {}
     records_path = OUT / "match_records.jsonl"
     if records_path.exists():
-        for line in records_path.open():
+        for line in records_path.open(encoding="utf-8"):
             r = json.loads(line)
             if not r["parse_ok"]:
                 key = (r["paper_id"], r["model"], r["run"])
@@ -133,8 +133,8 @@ def match(args):
 
     header = not path.exists()
     failures = 0
-    with ThreadPoolExecutor(args.workers) as pool, path.open("a") as out, \
-            (OUT / "match_records.jsonl").open("a") as log:
+    with ThreadPoolExecutor(args.workers) as pool, path.open("a", encoding="utf-8") as out, \
+            (OUT / "match_records.jsonl").open("a", encoding="utf-8") as log:
         if header:
             out.write("paper_id,review_id,model,run,annotation_job,id,recognition,stance\n")
         for k, future in enumerate(as_completed([pool.submit(work, j) for j in reviews]), start=1):

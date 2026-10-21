@@ -30,7 +30,7 @@ SEED, DRAWS, BOOT = 20260930, 200, 500
 
 
 def jsonl(path: Path) -> list[dict]:
-    return [json.loads(line) for line in path.open()] if path.exists() else []
+    return [json.loads(line) for line in path.open(encoding="utf-8")] if path.exists() else []
 
 
 def folder(venue: str) -> str:
@@ -44,7 +44,7 @@ def norm(venue: str, x: float) -> float:
 
 def manifest(venue: str) -> dict[str, dict]:
     """paper id -> paper (title, decision, human ratings, ...) for one venue."""
-    papers = json.loads((DATA / "manifests" / MANIFESTS[venue]).read_text())["papers"]
+    papers = json.loads((DATA / "manifests" / MANIFESTS[venue]).read_text(encoding="utf-8"))["papers"]
     out = {p["paper_id"]: p for p in papers if p.get("venue_key", venue) == venue}
     for p in out.values():
         p.setdefault("venue_key", venue)
@@ -206,5 +206,5 @@ def miss_rate(items_path: Path, labels: pd.DataFrame, papers: list[str]) -> dict
 
 def write(name: str, data: dict) -> None:
     OUTPUTS.mkdir(exist_ok=True)
-    (OUTPUTS / name).write_text(json.dumps(data, indent=1))
+    (OUTPUTS / name).write_text(json.dumps(data, indent=1), encoding="utf-8")
     print("->", OUTPUTS / name)

@@ -91,7 +91,7 @@ def all_records() -> list[dict]:
     out = []
     for name in ("records.jsonl", "records_rebuttal.jsonl"):
         if (OUT / name).exists():
-            out += [json.loads(line) for line in (OUT / name).open()]
+            out += [json.loads(line) for line in (OUT / name).open(encoding="utf-8")]
     return out
 
 
@@ -138,7 +138,7 @@ def _extract_json(raw: str) -> tuple[str, dict | None]:
 
 
 def _normalize(obj: dict) -> tuple[dict, bool]:
-    """Map the schema variants seen in revisions onto the call-A schema. Returns (review, has_points).
+    """Map the schema variants seen in revisions onto the first-review schema. Returns (review, has_points).
     Variants: fields nested under "review"; rating as a bare number or {"score": n}; overall_score or
     confidence at the top level; prior-knowledge fields at the top level; strengths and weaknesses
     merged into one list (then the points cannot be split and only the score is kept)."""
@@ -250,7 +250,7 @@ def _forums_v2() -> dict:
         raise SystemExit(f"no OpenReview forum files found: {paths}")
     for path in paths:
         if path.exists():
-            for line in path.open():
+            for line in path.open(encoding="utf-8"):
                 r = json.loads(line)
                 out[r["submission"]["id"]] = (path.parent.name, r)
     return out
@@ -258,7 +258,7 @@ def _forums_v2() -> dict:
 
 @functools.lru_cache
 def _first_round_notes() -> dict[str, list[str]]:
-    return json.loads(FIRST_ROUND_NOTES.read_text())["papers"] if FIRST_ROUND_NOTES.exists() else {}
+    return json.loads(FIRST_ROUND_NOTES.read_text(encoding="utf-8"))["papers"] if FIRST_ROUND_NOTES.exists() else {}
 
 
 def _author_response_v2(paper_id: str) -> str:
@@ -354,7 +354,7 @@ def failed_attempts() -> dict[tuple[str, str, str], int]:
 
 def run(args):
     set_repeat(args.repeat)
-    manifest = pd.DataFrame(json.loads(MANIFEST.read_text())["papers"])
+    manifest = pd.DataFrame(json.loads(MANIFEST.read_text(encoding="utf-8"))["papers"])
     by_arm = {arm: papers_for(arm, manifest) for arm in args.arms}
     ids = sorted(set().union(*by_arm.values()))
     rows = {p.paper_id: p for _, p in manifest.set_index("paper_id").loc[ids].reset_index().iterrows()}
@@ -406,7 +406,7 @@ def run(args):
                                                  "cached", "finish_reason", "provider")},
                 execution_model=usage.get("execution_model"), latency_s=round(time.perf_counter() - started, 3),
                 timestamp=datetime.datetime.now(datetime.UTC).isoformat())
-            with lock, record_file(arm).open("a") as f:
+            with lock, record_file(arm).open("a", encoding="utf-8") as f:
                 f.write(json.dumps(record) + "\n")
             if parsed.ok:
                 return record
@@ -439,7 +439,7 @@ def reparse(args):
     """Re-read the saved responses of cells that never parsed (no model calls) and append a record for each one that
     now parses, marked reparsed_from_failed_record."""
     set_repeat(args.repeat)
-    manifest = pd.DataFrame(json.loads(MANIFEST.read_text())["papers"])
+    manifest = pd.DataFrame(json.loads(MANIFEST.read_text(encoding="utf-8"))["papers"])
     venue_of = dict(zip(manifest.paper_id, manifest.venue_key))
     recs = all_records()
     ok = {(r["paper_id"], r["model_id"], r["arm"]) for r in recs if r["parse_ok"]}
@@ -454,7 +454,7 @@ def reparse(args):
         new = dict(r, emitted_score=parsed.score, items=parsed.items, reasoning_text=parsed.reasoning,
                    parse_ok=True, parse_error=None, extra=parsed.extra, reparsed_from_failed_record=True,
                    timestamp=datetime.datetime.now(datetime.UTC).isoformat())
-        with record_file(r["arm"]).open("a") as f:
+        with record_file(r["arm"]).open("a", encoding="utf-8") as f:
             f.write(json.dumps(new) + "\n")
         ok.add(key)
         added += 1
@@ -464,7 +464,7 @@ def reparse(args):
 def load_points() -> dict[str, list[dict]]:
     """paper id -> its human-raised points (POINTS)."""
     points: dict[str, list[dict]] = {}
-    for line in POINTS.open():
+    for line in POINTS.open(encoding="utf-8"):
         item = json.loads(line)
         points.setdefault(item["paper_id"], []).append(item)
     return points
@@ -486,7 +486,7 @@ def coverage(args):
         done = set(zip(prior.paper_id, prior.model, prior.arm))
     failed: dict[tuple, int] = {}
     if log_path.exists():
-        for line in log_path.open():
+        for line in log_path.open(encoding="utf-8"):
             r = json.loads(line)
             if not r["parse_ok"]:
                 key = (r["paper_id"], r["model"], r["arm"])
@@ -509,7 +509,7 @@ def coverage(args):
 
     header = not labels_path.exists()
     failures = 0
-    with ThreadPoolExecutor(args.workers) as pool, labels_path.open("a") as out, log_path.open("a") as log:
+    with ThreadPoolExecutor(args.workers) as pool, labels_path.open("a", encoding="utf-8") as out, log_path.open("a", encoding="utf-8") as log:
         if header:
             out.write("paper_id,model,arm,id,recognition,stance\n")
         for k, future in enumerate(as_completed([pool.submit(work, j) for j in jobs]), start=1):

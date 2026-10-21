@@ -31,7 +31,7 @@ def run_dir(model: str, venue: str, root: Path = RAW_OUTPUTS) -> Path:
 
 
 def iter_records(model: str, venue: str, call: str = "review", root: Path = RAW_OUTPUTS) -> Iterator[dict]:
-    with (run_dir(model, venue, root) / FILES[call]).open() as lines:
+    with (run_dir(model, venue, root) / FILES[call]).open(encoding="utf-8") as lines:
         for line in lines:
             if f'"call_type": "{call}"' in line:     # skip before decoding: records are large
                 yield json.loads(line)

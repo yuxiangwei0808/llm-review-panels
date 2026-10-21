@@ -49,7 +49,7 @@ def api_key() -> str:
     if os.environ.get("OPENROUTER_API_KEY"):
         return os.environ["OPENROUTER_API_KEY"]
     env = ROOT / ".env"
-    for line in env.read_text().splitlines() if env.exists() else []:
+    for line in env.read_text(encoding="utf-8").splitlines() if env.exists() else []:
         if line.startswith("OPENROUTER_API_KEY="):
             return line.split("=", 1)[1].strip()
     raise SystemExit("OPENROUTER_API_KEY is not set (environment or .env in the repository root)")
@@ -87,7 +87,7 @@ class OpenRouterClient:
         key = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest()
         cached = self.cache_dir / f"{key}.json"
         if cached.exists():
-            saved = json.loads(cached.read_text())
+            saved = json.loads(cached.read_text(encoding="utf-8"))
             return saved["text"], dict(saved["usage"], cached=True)
         with self.lock:
             if self.spent >= self.ceiling:
@@ -95,7 +95,7 @@ class OpenRouterClient:
         text, usage = self._post(api_model, prompt, temperature, max_tokens, extra)
         with self.lock:
             self.spent += usage["cost_usd"]
-        cached.write_text(json.dumps(dict(request=request, text=text, usage=usage)))
+        cached.write_text(json.dumps(dict(request=request, text=text, usage=usage)), encoding="utf-8")
         return text, usage
 
     def _post(self, api_model, prompt, temperature, max_tokens, extra=None) -> tuple[str, dict]:

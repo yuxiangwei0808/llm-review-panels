@@ -35,7 +35,7 @@ def main():
     ap.add_argument("--runs", type=int, default=1, help="independent reviews per paper and model")
     ap.add_argument("--max-usd", type=float, required=True, help="hard spending ceiling")
     a = ap.parse_args()
-    papers = pd.DataFrame(json.loads((ROOT / "data" / "manifests" / MANIFESTS[a.venue]).read_text())["papers"])
+    papers = pd.DataFrame(json.loads((ROOT / "data" / "manifests" / MANIFESTS[a.venue]).read_text(encoding="utf-8"))["papers"])
     client = OpenRouterClient(ROOT / "cache" / "responses" / "first_reviews", a.max_usd)
     runner.run(client, a.venue, a.models, papers[papers.venue_key == a.venue], calls=tuple(a.calls), runs=a.runs)
 

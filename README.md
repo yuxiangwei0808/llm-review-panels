@@ -127,3 +127,6 @@ In the paper, these give Figure 1 and Table 1 (`scaling.py`), Section 3.1 and Fi
 | `configs/models.yaml` | Each model's OpenRouter id, family, context window, and request settings |
 | `configs/venues.yaml` | Each venue's rating scale, accept threshold, and review-form wording |
 | `prompts/*.md` | Prompt templates: a YAML header and a body with `{placeholder}` fields |
+
+The prompt templates retain the wording used in the experiments. The reference to "verifier-derived confidence" in
+`prompts/review.md` comes from an earlier workflow; no such verifier stage is used in this paper.

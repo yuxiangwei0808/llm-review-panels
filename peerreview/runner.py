@@ -54,7 +54,7 @@ class RunWriter:
         self.done = set()
         self.attempts: dict[tuple, int] = {}    # failed cells: highest attempt recorded so far
         if self.path.exists():
-            for line in self.path.open():
+            for line in self.path.open(encoding="utf-8"):
                 r = json.loads(line)
                 key = (r["paper_id"], r["run_idx"], r["call_type"])
                 # A review without strengths or weaknesses is sampled again: the coverage judge needs its points.
@@ -68,11 +68,11 @@ class RunWriter:
         relative = f"{subfolder}/{digest}{suffix}"
         target = self.folder / relative
         if not target.exists():
-            target.write_text(text)
+            target.write_text(text, encoding="utf-8")
         return relative, digest
 
     def append(self, record: dict):
-        with self.lock, self.path.open("a") as out:
+        with self.lock, self.path.open("a", encoding="utf-8") as out:
             out.write(json.dumps(record, ensure_ascii=False) + "\n")
             self.done.add((record["paper_id"], record["run_idx"], record["call_type"]))
 
@@ -167,7 +167,7 @@ def run(client, venue_key: str, model_keys: list[str], papers: pd.DataFrame, cal
         writers = {call: RunWriter(folder, call) for call in calls}
         (folder / "run_meta.json").write_text(json.dumps(dict(
             venue_key=venue.key, venue_name=venue.name, scale=list(venue.scores),
-            accept_threshold=venue.accept_threshold), indent=1) + "\n")
+            accept_threshold=venue.accept_threshold), indent=1) + "\n", encoding="utf-8")
         papers.to_json(folder / "manifest.jsonl", orient="records", lines=True)
         jobs = [(paper, run_idx) for _, paper in papers.iterrows() for run_idx in range(runs)]
         errors, started = [], time.perf_counter()
@@ -191,7 +191,7 @@ def run(client, venue_key: str, model_keys: list[str], papers: pd.DataFrame, cal
                           f"${client.spent:.2f} spent, {len(errors)} errors", flush=True)
         if errors:
             log = folder / "errors.jsonl"
-            with log.open("a") as out:
+            with log.open("a", encoding="utf-8") as out:
                 for error in errors:
                     out.write(json.dumps(dict(error, model=key, venue=venue.key,
                                               timestamp=datetime.datetime.now(

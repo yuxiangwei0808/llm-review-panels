@@ -56,25 +56,25 @@ ROLES = {
 def assignment(ids: list[str]) -> dict[str, dict[str, str]]:
     path = OUT / "assignment.json"
     if path.exists():
-        return json.loads(path.read_text())["papers"]
+        return json.loads(path.read_text(encoding="utf-8"))["papers"]
     out = {}
     for pid in ids:
         roles = [r for r in ROLES for _ in range(2)]
         random.Random(f"{ROLE_SEED}:{pid}").shuffle(roles)
         out[pid] = dict(zip(discussion.PANEL, roles, strict=True))
     OUT.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"seed": f"{ROLE_SEED}:<paper_id>", "papers": out}, indent=1))
+    path.write_text(json.dumps({"seed": f"{ROLE_SEED}:<paper_id>", "papers": out}, indent=1), encoding="utf-8")
     return out
 
 
 def manifest() -> pd.DataFrame:
-    m = pd.DataFrame(json.loads(discussion.MANIFEST.read_text())["papers"]).set_index("paper_id")
+    m = pd.DataFrame(json.loads(discussion.MANIFEST.read_text(encoding="utf-8"))["papers"]).set_index("paper_id")
     return m
 
 
 def load_points() -> dict[str, list[dict]]:
     out: dict[str, list[dict]] = {}
-    for line in (CONTENT / "human_points.jsonl").open():
+    for line in (CONTENT / "human_points.jsonl").open(encoding="utf-8"):
         w = json.loads(line); out.setdefault(w["paper_id"], []).append(w)
     return out
 
@@ -87,7 +87,7 @@ def run(args):
     path = OUT / "records.jsonl"
     done, fails, truncated = set(), {}, set()
     if path.exists():
-        for r in map(json.loads, path.open()):
+        for r in map(json.loads, path.open(encoding="utf-8")):
             key = (r["paper_id"], r["model_id"])
             if r["parse_ok"]:
                 done.add(key)
@@ -134,7 +134,7 @@ def run(args):
                        latency_s=round(time.perf_counter() - started, 3),
                        timestamp=datetime.datetime.now(datetime.UTC).isoformat())
             rec["max_output_tokens"] = limit
-            with lock, path.open("a") as f:
+            with lock, path.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(rec) + "\n")
             if parsed.ok:
                 return rec
@@ -163,7 +163,7 @@ def run(args):
 
 
 def role_records() -> dict:
-    return {(r["paper_id"], r["model_id"]): r for r in map(json.loads, (OUT / "records.jsonl").open()) if r["parse_ok"]}
+    return {(r["paper_id"], r["model_id"]): r for r in map(json.loads, (OUT / "records.jsonl").open(encoding="utf-8")) if r["parse_ok"]}
 
 
 def coverage(args):
@@ -177,7 +177,7 @@ def coverage(args):
     done = set(zip(*[pd.read_csv(path)[c] for c in ("paper_id", "model")])) if path.exists() else set()
     failed: dict[tuple, int] = {}
     if log_path.exists():
-        for line in log_path.open():
+        for line in log_path.open(encoding="utf-8"):
             r = json.loads(line)
             if not r["parse_ok"]:
                 failed[(r["paper_id"], r["model"])] = max(failed.get((r["paper_id"], r["model"]), 0), r.get("attempt", 1))
@@ -191,7 +191,7 @@ def coverage(args):
         summary = " ".join(map(str, summary)) if isinstance(summary, list) else str(summary or "")
         rec = content.match_review(client, annotator, points[pid], r["items"], summary=summary, run_key=0,
                                    attempt_offset=failed.get((pid, m), 0))
-        with lock, log_path.open("a") as log:
+        with lock, log_path.open("a", encoding="utf-8") as log:
             log.write(json.dumps(dict(paper_id=pid, model=m, role=r["role"], **rec)) + "\n")
         if not rec["parse_ok"]:
             return 0

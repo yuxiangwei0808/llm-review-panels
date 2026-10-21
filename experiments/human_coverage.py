@@ -59,13 +59,13 @@ def main():
     venue = os.environ.get("VENUE")
     if venue not in GROUPS:
         raise SystemExit(f"set VENUE to one of {', '.join(GROUPS)}")
-    manifest = json.loads((ROOT / "data" / "manifests" / f"{venue}.json").read_text())["papers"]
+    manifest = json.loads((ROOT / "data" / "manifests" / f"{venue}.json").read_text(encoding="utf-8"))["papers"]
     venue_of = {p["paper_id"]: p["venue_key"] for p in manifest}
     out_dir = ROOT / "results" / venue / "content"
     items_path, labels_path = out_dir / "human_points.jsonl", out_dir / "coverage_labels.csv"
     stem = "human_coverage"
     points: dict[str, list[dict]] = {}
-    for line in items_path.open():
+    for line in items_path.open(encoding="utf-8"):
         item = json.loads(line)
         points.setdefault(item["paper_id"], []).append(item)
 
@@ -103,7 +103,7 @@ def main():
 
     rows, failures = [], 0
     out_dir.mkdir(parents=True, exist_ok=True)
-    with ThreadPoolExecutor(args.workers) as pool, (out_dir / f"{stem}_records.jsonl").open("a") as log:
+    with ThreadPoolExecutor(args.workers) as pool, (out_dir / f"{stem}_records.jsonl").open("a", encoding="utf-8") as log:
         for k, future in enumerate(as_completed([pool.submit(work, j) for j in jobs]), start=1):
             pid, hid, other, rec = future.result()
             log.write(json.dumps(dict(paper_id=pid, held_out=hid, other=other, **rec)) + "\n")
@@ -210,7 +210,7 @@ def main():
                    llm_missed_pct_heldout_weighting={k: round(100 * v, 2) for k, v in llm_curve(llm_pairs).items()},
                    llm_missed_pct_union_weighting={k: round(100 * v, 2) for k, v in llm_curve(llm_union).items()},
                    spent_usd=round(client.spent, 4))
-    (out_dir / f"{stem}.json").write_text(json.dumps(summary, indent=1) + "\n")
+    (out_dir / f"{stem}.json").write_text(json.dumps(summary, indent=1) + "\n", encoding="utf-8")
     print(json.dumps(summary, indent=1))
 
 

@@ -19,7 +19,7 @@ TITLE_MASK = "[title withheld]"
 @lru_cache
 def load_template(name: str) -> tuple[dict, str]:
     """Return (header, body) of ``prompts/<name>.md``."""
-    text = (PROMPTS / f"{name}.md").read_text()
+    text = (PROMPTS / f"{name}.md").read_text(encoding="utf-8")
     _, header, body = text.split("---\n", 2)
     return yaml.safe_load(header), body.lstrip("\n")
 

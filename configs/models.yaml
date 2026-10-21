@@ -1,4 +1,4 @@
-# One entry per model. The key is the model's name in every record and its folder under results/raw/; api_model is
+# One entry per model. The key is the model's name in every record and its folder under results/first_reviews/; api_model is
 # the OpenRouter identifier; request holds extra OpenRouter request fields (part of the response cache key).
 # Eight-family panel: gpt-5.6-terra, gemini-3.1-pro, claude-sonnet-5, deepseek-v4-flash-0731, glm-5.2, qwen3.8-2.4t-a95b,
 # grok-4.7, kimi-k3. Four-family panel (the Families comparison): gpt-5.1, gpt-5.6-luna, gpt-5.6-terra, gemini-3.1-pro,
