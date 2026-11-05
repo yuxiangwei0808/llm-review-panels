@@ -130,3 +130,8 @@ In the paper, these give Figure 1 and Table 1 (`scaling.py`), Section 3.1 and Fi
 
 The prompt templates retain the wording used in the experiments. The reference to "verifier-derived confidence" in
 `prompts/review.md` comes from an earlier workflow; no such verifier stage is used in this paper.
+
+## License
+
+The code is released under the MIT License ([LICENSE](LICENSE)). The dataset is released under CC BY 4.0; see its
+card on Hugging Face.
