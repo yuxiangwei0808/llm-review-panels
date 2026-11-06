@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>
+      Second Opinions or Echoes? Measuring Shared Errors Across LLM Peer Review
+      Stages
+    </title>
+    <meta
+      name="description"
+      content="Panels of eight LLM reviewers on 1,404 submissions to six machine learning venues miss the same weaknesses and misjudge the same papers, and rebuttal, discussion, and the area chair's decision do not correct these shared errors."
+    />
+    <meta name="theme-color" content="#ffffff" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="project.css" />
+    <script src="project.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#overview">Skip to the overview</a>
+    <header class="site-header wrap">
+      <a class="brand" href="./" aria-label="LLM Review Panels project page"
+        ><img src="icon.svg" width="28" height="28" alt="" />LLM Review
+        Panels</a
+      >
+      <nav aria-label="Main navigation">
+        <a href="#findings">Findings</a>
+        <a href="#cycle">Review cycle</a>
+        <a href="#remedies">Remedies</a>
+        <a href="#data">Data</a>
+      </nav>
+    </header>
+    <main>
+      <section class="hero wrap" aria-labelledby="paper-title">
+        <h1 id="paper-title">
+          <span class="title-name">Second Opinions or Echoes?</span> Measuring
+          Shared Errors Across<br class="desktop-break" />
+          LLM Peer Review Stages
+        </h1>
+        <p class="authors">
+          <span>Yuxiang Wei<sup>1,*</sup></span>
+          <span>Sherry Ruan<sup>2,*</sup></span>
+          <span>Liwei Jiang<sup>3</sup></span>
+          <span>Qizhen Lan<sup>4</sup></span>
+          <span>Jonas Mueller<sup>2</sup></span>
+        </p>
+        <div class="affiliations">
+          <p>
+            <span><sup>1</sup> Georgia Institute of Technology</span
+            ><span><sup>2</sup> Handshake AI</span
+            ><span><sup>3</sup> University of Washington</span>
+          </p>
+          <p>
+            <span
+              ><sup>4</sup> University of Texas Health Science Center at
+              Houston</span
+            ><span><sup>*</sup> Equal contribution</span>
+          </p>
+        </div>
+        <p class="hero-summary">
+          Panels of eight LLM reviewers from eight model families, on 1,404
+          submissions to six machine learning venues. The reviewers miss the
+          same weaknesses and misjudge the same papers, and rebuttal,
+          discussion, and the area chair's decision do not correct these shared
+          errors.
+        </p>
+        <div class="resource-links">
+          <a
+            class="button primary"
+            href="https://github.com/yuxiangwei0808/llm-review-panels"
+            >Code <span aria-hidden="true">↗</span></a
+          >
+          <a
+            class="button"
+            href="https://huggingface.co/datasets/stanjsx/llm-review-panels"
+            >Dataset <span aria-hidden="true">↗</span></a
+          >
+          <a class="button" href="#citation"
+            >BibTeX <span aria-hidden="true">↓</span></a
+          >
+        </div>
+      </section>
+
+      <section
+        id="overview"
+        class="section wrap"
+        aria-labelledby="overview-title"
+      >
+        <div class="section-intro">
+          <p class="eyebrow">The study</p>
+          <h2 id="overview-title">
+            Four review stages, benchmarked against human committees
+          </h2>
+          <p>
+            Peer review relies on several reviewers to find different weaknesses
+            and to correct one another through discussion. We test whether
+            panels of LLM reviewers do the same. Eight LLMs from eight model
+            families review 1,404 submissions to three venues whose human
+            reviews predate ChatGPT (ICLR 2021, ICLR 2022, NeurIPS 2022) and
+            three recent ones (NeurIPS 2023, ICLR 2025, ICML 2025). We compare
+            each stage, from independent review through rebuttal and discussion
+            to the area chair's decision, with the human process recorded on
+            OpenReview.
+          </p>
+        </div>
+        <figure>
+          <a
+            class="figure-link"
+            href="figures/pipeline.svg"
+            target="_blank"
+            rel="noopener"
+            aria-label="Open the study overview figure at full size"
+            ><img
+              src="figures/pipeline.svg"
+              width="453.5433"
+              height="201.25984"
+              alt="The four stages of peer review with an eight-LLM panel: independent review, rebuttal, discussion, and area chair. Failure modes: shared blind spots and shared mistakes, unpersuaded by rebuttals, conformity in discussion, and unanimous errors by area chairs. Selected remedies: adding model families or roles and showing missed weaknesses, limiting peer influence, and giving chairs the human reviews. Across the pipeline, LLM reviewers move together instead of correcting their shared mistakes."
+          /></a>
+          <figcaption>
+            The four stages of peer review with an eight-LLM panel, and what
+            goes wrong at each stage compared with the human reviewers. Rebuttal
+            and discussion run as parallel experiments from the same first
+            reviews. The bottom rows summarize the remedies we test.
+            <a href="figures/pipeline.svg" target="_blank" rel="noopener"
+              >Enlarge figure ⤢</a
+            >
+          </figcaption>
+        </figure>
+      </section>
+
+      <section
+        id="findings"
+        class="section wrap"
+        aria-labelledby="findings-title"
+      >
+        <div class="section-intro">
+          <p class="eyebrow">Independent review</p>
+          <h2 id="findings-title">
+            Eight LLMs score like 2.4 to 3.0 human reviewers
+          </h2>
+          <p>
+            One LLM scores papers about as well as one human reviewer, measured
+            by correlation with held-out human ratings; Kimi K3 is the
+            strongest. Adding seven LLMs, however, improves the panel less than
+            adding two human reviewers on five of the six venues. The models
+            miss the same weaknesses and misjudge the same papers: their scoring
+            errors are two to four times as correlated as those of human
+            reviewers.
+          </p>
+        </div>
+        <div class="result-strip" aria-label="Headline results">
+          <div>
+            <p class="result-number"><strong>2.4–3.0</strong></p>
+            <p>Human reviewers matched by eight LLMs</p>
+          </div>
+          <div>
+            <p class="result-number"><strong>33–47%</strong></p>
+            <p>Human-raised weaknesses missed by all eight LLMs</p>
+          </div>
+          <div>
+            <p class="result-number"><strong>2–4×</strong></p>
+            <p>Error correlation of LLMs relative to human reviewers</p>
+          </div>
+        </div>
+        <div class="figure-pair">
+          <figure>
+            <a
+              class="figure-link"
+              href="figures/scaling.svg"
+              target="_blank"
+              rel="noopener"
+              aria-label="Open the committee size figure at full size"
+              ><img
+                src="figures/scaling.svg"
+                width="227.45339"
+                height="171.76888"
+                loading="lazy"
+                alt="Correlation with a held-out human rating against committee size from one to eight reviewers. Human committees rise steeply from one to three reviewers; LLM panels rise slowly and at eight LLMs equal about 3.0 humans on the 2021–22 venues and 2.4 humans on the 2023–25 venues."
+            /></a>
+            <figcaption>
+              Correlation of the committee's mean score with a held-out human
+              rating as the committee grows, pooling the 2021–22 venues (green)
+              and the 2023–25 venues (blue). Eight LLMs reach the correlation of
+              3.0 human reviewers on the earlier venues and 2.4 on the recent
+              ones. Shaded bands are 95% confidence intervals.
+              <a href="figures/scaling.svg" target="_blank" rel="noopener"
+                >Enlarge figure ⤢</a
+              >
+            </figcaption>
+          </figure>
+          <figure>
+            <a
+              class="figure-link"
+              href="figures/missed-weaknesses.svg"
+              target="_blank"
+              rel="noopener"
+              aria-label="Open the missed weaknesses figure at full size"
+              ><img
+                src="figures/missed-weaknesses.svg"
+                width="222.3438"
+                height="161.94149"
+                loading="lazy"
+                alt="Percentage of human-raised weaknesses missed by every pooled review, against the number of reviews pooled. For all six venues the LLM curves fall slowly from about 70–80% with one review to 33–47% with eight; the human curve falls to 0% at four reviewers."
+            /></a>
+            <figcaption>
+              Share of the weaknesses raised by a paper's human reviewers that no
+              pooled review raises. Eight pooled LLM reviews still miss 33–47%,
+              and 27–40% of the missed weaknesses concern core scientific rigor.
+              The human curve reaches 0% at four reviewers by construction,
+              because the reference is the paper's own human reviews. Shaded
+              bands are 95% bootstrap intervals.
+              <a
+                href="figures/missed-weaknesses.svg"
+                target="_blank"
+                rel="noopener"
+                >Enlarge figure ⤢</a
+              >
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section id="cycle" class="section wrap" aria-labelledby="cycle-title">
+        <div class="section-intro">
+          <p class="eyebrow">Rebuttal, discussion, and the area chair</p>
+          <h2 id="cycle-title">Later stages do not correct the shared errors</h2>
+        </div>
+        <div class="stages">
+          <div>
+            <h3>Rebuttal</h3>
+            <p>
+              Author responses change 8–13% of individual ratings, against 3–4%
+              in a plain revision, but do not improve score correlation with
+              human ratings.
+            </p>
+          </div>
+          <div>
+            <h3>Discussion</h3>
+            <p>
+              After reading each other's reviews and scores, 32–46% of reviewers
+              change their rating and the spread of scores halves. Score
+              correlation with human ratings never increases, and the errors
+              become more correlated on all six venues.
+            </p>
+          </div>
+          <div>
+            <h3>Area chair</h3>
+            <p>
+              All nine LLM area chairs make the same wrong decision on 5.8% of
+              papers when they read the human reviews, and on 11.2% when they
+              read the panel's reviews; 86% of the latter are false accepts.
+            </p>
+          </div>
+        </div>
+        <figure class="case-figure">
+          <a
+            class="figure-link"
+            href="figures/case-study.svg"
+            target="_blank"
+            rel="noopener"
+            aria-label="Open the case study figure at full size"
+            ><img
+              src="figures/case-study.svg"
+              width="453.5433"
+              height="125.57481"
+              loading="lazy"
+              alt="Case study of a rejected ICLR 2022 submission. Independent review: humans give 3, 3, 6, 8; seven of eight LLMs lean accept and all eight miss the same 10 of the 15 human-raised weaknesses. Rebuttal: no LLM changes its score. Discussion: three LLMs move, so all eight give 6. Area chair: four of nine LLM chairs accept with the human reviews, nine of nine with the panel's reviews."
+          /></a>
+          <figcaption>
+            A rejected ICLR 2022 submission. The human reviewers raise 15
+            weaknesses; all eight LLMs miss the same 10, and seven of eight lean
+            accept. No LLM changes its score after the authors' response. In
+            discussion three reviewers move, so all eight give 6. All nine LLM
+            area chairs accept the paper when they read the panel's reviews;
+            four of nine accept when they read the human reviews.
+            <a href="figures/case-study.svg" target="_blank" rel="noopener"
+              >Enlarge figure ⤢</a
+            >
+          </figcaption>
+        </figure>
+      </section>
+
+      <section
+        id="remedies"
+        class="section wrap"
+        aria-labelledby="remedies-title"
+      >
+        <div class="section-intro">
+          <p class="eyebrow">Remedies</p>
+          <h2 id="remedies-title">Six remedies, and why they fall short</h2>
+          <p>
+            We change who sits on the panel, what the reviewers read, how they
+            interact, and who decides, each against a matched control panel.
+            Most remedies partly meet their own aims. Only adding model families
+            improves on the panel's independent scores, largely through stronger
+            individual models.
+          </p>
+        </div>
+        <div
+          class="table-scroll"
+          role="region"
+          aria-label="Remedies and their results"
+          tabindex="0"
+        >
+          <table id="remedies-table">
+            <caption>
+              Each remedy, its aim, and whether it improves the panel's scores
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Remedy</th>
+                <th scope="col">Aim</th>
+                <th scope="col">Aim met?</th>
+                <th scope="col">Panel scores better?</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="group">
+                <th scope="rowgroup" colspan="4">Who sits on the panel</th>
+              </tr>
+              <tr>
+                <th scope="row">More model families</th>
+                <td data-label="Aim">More independent judgment</td>
+                <td data-label="Aim met?" class="worse">
+                  <strong>No</strong>, errors more correlated
+                </td>
+                <td data-label="Panel scores better?" class="better">
+                  <strong>Yes</strong>, both venue groups
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Reviewer roles</th>
+                <td data-label="Aim">Find missed weaknesses</td>
+                <td data-label="Aim met?" class="partly">
+                  <strong>Partly</strong>, miss rate down 2–4 points on 2021–22
+                </td>
+                <td data-label="Panel scores better?" class="worse">
+                  <strong>No</strong>, score correlation falls on 2023–25
+                </td>
+              </tr>
+              <tr class="group">
+                <th scope="rowgroup" colspan="4">What reviewers read</th>
+              </tr>
+              <tr>
+                <th scope="row">Notes on missed weaknesses</th>
+                <td data-label="Aim">Supply missed weaknesses</td>
+                <td data-label="Aim met?" class="better">
+                  <strong>Yes</strong>, 56–66% written in and endorsed
+                </td>
+                <td data-label="Panel scores better?" class="partly">
+                  <strong>Slightly</strong>, on 2021–22
+                </td>
+              </tr>
+              <tr class="group">
+                <th scope="rowgroup" colspan="4">How reviewers interact</th>
+              </tr>
+              <tr>
+                <th scope="row">Restricted discussion</th>
+                <td data-label="Aim">Keep judgments independent in discussion</td>
+                <td data-label="Aim met?" class="partly">
+                  <strong>Partly</strong>, errors still become more correlated,
+                  though less than in full discussion
+                </td>
+                <td data-label="Panel scores better?" class="worse">
+                  <strong>No</strong>
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">No discussion</th>
+                <td data-label="Aim">Avoid conformity</td>
+                <td data-label="Aim met?" class="better"><strong>Yes</strong></td>
+                <td data-label="Panel scores better?" class="better">
+                  <strong>Yes</strong>
+                </td>
+              </tr>
+              <tr class="group">
+                <th scope="rowgroup" colspan="4">Who decides</th>
+              </tr>
+              <tr>
+                <th scope="row">Chairs read human reviews</th>
+                <td data-label="Aim">Reduce the chairs' unanimous errors</td>
+                <td data-label="Aim met?" class="partly">
+                  <strong>Partly</strong>, from 11% to 6% of papers, but all
+                  nine still wrong together on 2–13%
+                </td>
+                <td data-label="Panel scores better?">Not applicable</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">
+          Restricted discussion hides the other reviewers' scores, hides both
+          their scores and stated verdicts, or asks reviewers to stay
+          independent. Panel
+          scores are judged by panel error, decision AUROC, and score
+          correlation with human ratings in the 2021–22 and 2023–25 venue
+          groups.
+        </p>
+
+        <div class="subsection">
+          <h3>Scores shift together</h3>
+          <p>
+            The remedies change what the reviews say more than how the models
+            score. Every remedy except notes lowers the scores of 75–86% of
+            papers, more than the 64% the panel overrated, so misjudgments
+            persist and score correlation with human ratings does not improve.
+            Error correlation barely changes with roles or notes and rises by
+            0.14 to 0.25 in discussion.
+          </p>
+          <figure>
+            <a
+              class="figure-link"
+              href="figures/remedy-effects.svg"
+              target="_blank"
+              rel="noopener"
+              aria-label="Open the remedy effects figure at full size"
+              ><img
+                src="figures/remedy-effects.svg"
+                width="453.5433"
+                height="138.89765"
+                loading="lazy"
+                alt="Three panels comparing remedies with the first reviews. Share of papers whose score fell: roles 79%, notes 47%, full discussion 75%, hidden scores 84%, hidden verdicts 86%, independence 81%, against 64% for a full fix. Change in score correlation: between −0.05 and 0.00 for every remedy. Change in error correlation: −0.02 for roles and notes, +0.14 to +0.25 for the discussion conditions."
+            /></a>
+            <figcaption>
+              Changes from the first independent reviews, pooled across the six
+              venues: (a) share of papers whose mean panel score fell, (b)
+              change in score correlation with human ratings, (c) change in
+              pairwise error correlation among the LLMs. Dashed lines mark a
+              plain revision; dotted lines mark a full fix that sets each panel
+              score to the paper's mean human rating. Error bars are 95%
+              bootstrap intervals.
+              <a
+                href="figures/remedy-effects.svg"
+                target="_blank"
+                rel="noopener"
+                >Enlarge figure ⤢</a
+              >
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section
+        id="guidelines"
+        class="section wrap"
+        aria-labelledby="guidelines-title"
+      >
+        <div class="section-intro">
+          <p class="eyebrow">Guidelines</p>
+          <h2 id="guidelines-title">Designing LLM review panels</h2>
+        </div>
+        <ol class="guidelines">
+          <li>
+            <h3>Benchmark discussion against averaging</h3>
+            <p>
+              No discussion protocol we tested improved scoring over the first
+              reviews. Adopt one only if it beats a simple average of the
+              independent scores.
+            </p>
+          </li>
+          <li>
+            <h3>Prefer stronger models over more families</h3>
+            <p>
+              Panels from more model families improved through individually
+              stronger models, while their errors became more correlated.
+            </p>
+          </li>
+          <li>
+            <h3>Use roles to widen coverage</h3>
+            <p>
+              Specialized roles and notes surface overlooked weaknesses for
+              humans to inspect, but richer reviews do not improve scores.
+            </p>
+          </li>
+          <li>
+            <h3>Keep scores and decisions with humans</h3>
+            <p>
+              Use LLMs to flag potential weaknesses for human reviewers and
+              chairs. For a borderline paper, recruit another human reviewer.
+            </p>
+          </li>
+        </ol>
+      </section>
+
+      <section id="data" class="section wrap data" aria-labelledby="data-title">
+        <div>
+          <p class="eyebrow">Data and code</p>
+          <h2 id="data-title">Review traces from every stage</h2>
+          <p>
+            The dataset contains the model-call records behind the paper: first
+            reviews, revisions after rebuttal and discussion, the remedy
+            experiments, and the LLM area chairs' decisions, with the coverage
+            judge's labels and human annotations of 300 weakness–review pairs.
+            The code runs the panels through OpenRouter and reproduces the
+            paper's analyses from these records. Complete paper texts and human
+            reviews are not included; they are public on OpenReview.
+          </p>
+          <p class="data-links">
+            <a
+              class="text-link"
+              href="https://huggingface.co/datasets/stanjsx/llm-review-panels"
+              >Explore the dataset on Hugging Face
+              <span aria-hidden="true">↗</span></a
+            >
+            <a
+              class="text-link"
+              href="https://github.com/yuxiangwei0808/llm-review-panels"
+              >Browse the code on GitHub <span aria-hidden="true">↗</span></a
+            >
+          </p>
+          <p class="license">Data: CC BY 4.0. Code: MIT License.</p>
+        </div>
+        <dl class="data-counts">
+          <div>
+            <dt>Submissions</dt>
+            <dd>1,404</dd>
+          </div>
+          <div>
+            <dt>Venues</dt>
+            <dd>6</dd>
+          </div>
+          <div>
+            <dt>LLM reviewers, one per model family</dt>
+            <dd>8</dd>
+          </div>
+          <div>
+            <dt>Annotated weakness–review pairs</dt>
+            <dd>300</dd>
+          </div>
+        </dl>
+      </section>
+
+      <section
+        id="citation"
+        class="section wrap"
+        aria-labelledby="citation-title"
+      >
+        <div class="citation-heading">
+          <h2 id="citation-title">Citation</h2>
+          <button id="copy-bibtex" type="button">Copy BibTeX</button>
+        </div>
+        <pre><code id="bibtex">@misc{wei2026secondopinions,
+  title  = {Second Opinions or Echoes? Measuring Shared Errors Across LLM Peer Review Stages},
+  author = {Wei, Yuxiang and Ruan, Sherry and Jiang, Liwei and Lan, Qizhen and Mueller, Jonas},
+  year   = {2026}
+}</code></pre>
+      </section>
+    </main>
+    <dialog
+      id="figure-viewer"
+      aria-labelledby="figure-viewer-title"
+      aria-describedby="figure-viewer-help"
+    >
+      <div class="viewer-heading">
+        <h2 id="figure-viewer-title">Paper figure</h2>
+        <button id="figure-close" type="button" autofocus>
+          Close <span aria-hidden="true">×</span>
+        </button>
+      </div>
+      <div class="viewer-toolbar" aria-label="Figure size">
+        <button id="figure-smaller" type="button" aria-label="Zoom out">
+          −
+        </button>
+        <output id="figure-scale" aria-live="polite">100%</output>
+        <button id="figure-larger" type="button" aria-label="Zoom in">+</button>
+        <button id="figure-fit" type="button">Fit to view</button>
+      </div>
+      <div
+        id="figure-viewport"
+        tabindex="0"
+        role="region"
+        aria-label="Enlarged figure; scroll to see more"
+      >
+        <img id="figure-image" alt="" />
+      </div>
+      <p id="figure-viewer-help">
+        Use + and − to change size. Scroll to explore the enlarged figure.
+      </p>
+    </dialog>
+    <footer class="wrap">
+      <a class="brand" href="./">LLM Review Panels</a>
+      <div>
+        <a href="https://github.com/yuxiangwei0808/llm-review-panels">Code</a
+        ><a href="https://huggingface.co/datasets/stanjsx/llm-review-panels"
+          >Dataset</a
+        ><a href="#citation">BibTeX</a>
+      </div>
+    </footer>
+  </body>
+</html>
