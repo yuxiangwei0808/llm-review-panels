@@ -9,7 +9,7 @@
     </title>
     <meta
       name="description"
-      content="LLM reviewers from different model families make the same mistakes, and rebuttal, discussion, and the area chair do not correct them."
+      content="LLM reviewers from different model families make the same mistakes, and rebuttal, discussion, and the area chair's decision do not correct them."
     />
     <meta name="theme-color" content="#ffffff" />
     <link rel="icon" href="icon.svg" type="image/svg+xml" />
@@ -58,7 +58,7 @@
         </div>
         <p class="hero-summary">
           LLM reviewers from different model families make the same mistakes,
-          and rebuttal, discussion, and the area chair do not correct them.
+          and rebuttal, discussion, and the area chair's decision do not correct them.
         </p>
         <div class="resource-links">
           <a
@@ -93,8 +93,7 @@
           /></a>
           <figcaption>
             Eight LLMs from eight model families review 1,404 submissions to six
-            machine learning venues (2021–2025) through all four stages, compared
-            at each stage with the human reviewers on OpenReview.
+            machine learning venues (2021–2025). We compare each of the four stages with the human judgments recorded on OpenReview.
           </figcaption>
         </figure>
       </section>
@@ -111,8 +110,7 @@
           </h2>
           <p>
             Even pooled, they miss 33–47% of human-raised weaknesses, and their
-            scoring errors are two to four times as correlated as human
-            reviewers'.
+            scoring errors are two to four times as correlated as those of human reviewers.
           </p>
         </div>
         <div class="figure-pair">
@@ -149,7 +147,7 @@
                 alt="Percentage of human-raised weaknesses missed by every pooled review, against the number of reviews pooled. For all six venues the LLM curves fall slowly from about 70–80% with one review to 33–47% with eight; the human curve falls to 0% at four reviewers."
             /></a>
             <figcaption>
-              Human-raised weaknesses that no pooled review raises.
+              Share of human-raised weaknesses that no review raises, as more reviews are pooled.
             </figcaption>
           </figure>
         </div>
@@ -159,13 +157,13 @@
         <div class="section-intro">
           <p class="eyebrow">Finding 2</p>
           <h2 id="finding-2-title">
-            Later stages move the reviewers together, and the shared errors persist
+            In later stages, the reviewers move together and their shared errors persist
           </h2>
         </div>
         <div class="stages">
           <div>
             <h3>Rebuttal</h3>
-            <p>Ratings change, but agreement with human ratings does not improve.</p>
+            <p>Author responses change some ratings but do not improve agreement with human ratings.</p>
           </div>
           <div>
             <h3>Discussion</h3>
@@ -174,7 +172,7 @@
           <div>
             <h3>Area chair</h3>
             <p>
-              All nine LLM chairs make the same wrong decision on 11% of papers,
+              All nine LLM area chairs make the same wrong decision on 11% of papers,
               mostly false accepts.
             </p>
           </div>
@@ -191,12 +189,11 @@
               width="453.5433"
               height="125.57481"
               loading="lazy"
-              alt="Case study of a rejected ICLR 2022 submission. Independent review: humans give 3, 3, 6, 8; seven of eight LLMs lean accept and all eight miss the same 10 of the 15 human-raised weaknesses. Rebuttal: no LLM changes its score. Discussion: three LLMs move, so all eight give 6. Area chair: four of nine LLM chairs accept with the human reviews, nine of nine with the panel's reviews."
+              alt="Case study of a rejected ICLR 2022 submission. Independent review: humans give 3, 3, 6, 8; seven of eight LLMs lean accept and all eight miss the same 10 of the 15 human-raised weaknesses. Rebuttal: no LLM changes its score. Discussion: three LLMs move, so all eight give 6. Area chair: four of nine LLM area chairs accept with the human reviews, nine of nine with the panel's reviews."
           /></a>
           <figcaption>
             A rejected ICLR 2022 paper: all eight LLMs miss the same 10 of 15
-            human-raised weaknesses, discussion brings all eight to a 6, and all
-            nine LLM chairs accept it.
+            human-raised weaknesses, discussion brings all eight to a score of 6, and all nine LLM area chairs accept it.
           </figcaption>
         </figure>
       </section>
@@ -208,11 +205,9 @@
       >
         <div class="section-intro">
           <p class="eyebrow">Finding 3</p>
-          <h2 id="finding-3-title">Six remedies, no fix</h2>
+          <h2 id="finding-3-title">No remedy restores independent judgment while improving scoring</h2>
           <p>
-            We test six remedies, from diversifying models and highlighting
-            missed weaknesses to restricting discussion and showing chairs the
-            human reviews. None restores independent judgment while improving panel scoring.
+            We test six remedies that change who sits on the panel, what reviewers read, how they discuss, and who decides.
           </p>
         </div>
         <figure>
@@ -227,17 +222,16 @@
               width="453.5433"
               height="138.89765"
               loading="lazy"
-              alt="Three panels comparing remedies with the first reviews. Share of papers whose score fell: roles 79%, notes 47%, full discussion 75%, hidden scores 84%, hidden verdicts 86%, independence 81%, against 64% for a full fix. Change in score correlation: between −0.05 and 0.00 for every remedy. Change in error correlation: −0.02 for roles and notes, +0.14 to +0.25 for the discussion conditions."
+              alt="Three panels comparing remedies with the independent reviews. Share of papers whose score fell: roles 79%, notes 47%, full discussion 75%, hidden scores 84%, hidden verdicts 86%, independence 81%, against 64% for a full fix. Change in score correlation: between −0.05 and 0.00 for every remedy. Change in error correlation: −0.02 for roles and notes, +0.14 to +0.25 for the discussion conditions."
           /></a>
           <figcaption>
-            Change from the first reviews: (a) papers whose score fell, (b)
+            Change from the independent reviews: (a) share of papers whose panel score fell, (b)
             score correlation with human ratings, (c) error correlation among the
             LLMs.
           </figcaption>
         </figure>
         <p class="takeaway">
-          Use LLM reviews to surface concerns; keep scoring and decisions with
-          humans.
+          LLM reviews are useful for surfacing concerns, but scoring and decisions should stay with humans.
         </p>
       </section>
 
@@ -245,7 +239,7 @@
         <div class="section-intro">
           <h2 id="data-title">Data and code</h2>
           <p>
-            Review traces from every stage, the code that runs the panels and
+            We release the review traces from every stage, the code that runs the panels and
             reproduces the analyses, and human annotations of the weaknesses LLM
             reviews miss.
           </p>
