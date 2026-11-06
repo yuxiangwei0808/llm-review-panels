@@ -2,8 +2,8 @@
 
 Panels of LLM reviewers taken through the stages of peer review: independent review, rebuttal, discussion, and the
 area chair's decision. The code runs the panels through OpenRouter, judges which weaknesses raised by human reviewers
-each LLM review also raises, and analyzes the saved records. It accompanies the paper *Second Opinions or Echoes? Shared
-Errors in LLM Review Panels*.
+each LLM review also raises, and analyzes the saved records. It accompanies the paper *Second Opinions or Echoes?
+Measuring Shared Errors Across LLM Peer Review Stages*.
 
 ## Installation
 

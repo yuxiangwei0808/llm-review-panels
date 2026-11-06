@@ -1,7 +1,7 @@
 [project]
 name = "llm-review-panels"
 version = "0.1.0"
-description = "Code for 'Second Opinions or Echoes? Shared Errors in LLM Review Panels'"
+description = "Code for 'Second Opinions or Echoes? Measuring Shared Errors Across LLM Peer Review Stages'"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
